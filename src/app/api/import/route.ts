@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { DIFFICULTIES } from "@/lib/constants";
 import { csv, fail } from "@/lib/http";
 import { dbConnect } from "@/lib/mongodb";
+import { ensureOptions } from "@/lib/options";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
 import { Question } from "@/models/Question";
 
 type Incoming = Record<string, unknown>;
 
-function normalize(raw: Incoming, sourceList: string) {
+function normalize(raw: Incoming, pattern: string) {
   const title = String(raw.title ?? "").trim();
   if (!title) return null;
   const difficulty = (DIFFICULTIES as readonly string[]).includes(String(raw.difficulty))
@@ -23,14 +24,14 @@ function normalize(raw: Incoming, sourceList: string) {
     topics: csv(raw.topics),
     companies: csv(raw.companies),
     difficulty,
-    sourceList: sourceList || String(raw.sourceList ?? ""),
+    pattern: pattern || String(raw.pattern ?? ""),
     isStarred: Boolean(raw.isStarred),
     status: "todo",
   };
 }
 
 /**
- * Body: `{ questions: [...], sourceList? }` (an exported file's `questions` works too, or a bare array).
+ * Body: `{ questions: [...], pattern? }` (an exported file's `questions` works too, or a bare array).
  * Imports question definitions only (no history); skips duplicates by platform link, else title.
  */
 export async function POST(req: NextRequest) {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const rows: Incoming[] | null = Array.isArray(body) ? body : Array.isArray(body.questions) ? body.questions : null;
     if (!rows) return fail(new Error("Expected { questions: [...] }."), 400);
-    const sourceList = typeof body.sourceList === "string" ? body.sourceList.trim() : "";
+    const pattern = typeof body.pattern === "string" ? body.pattern.trim() : "";
 
     const existing = await Question.find({}, { title: 1, platformUrl: 1 }).lean();
     const urls = new Set(
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
     const fresh = [];
     let skipped = 0;
     for (const raw of rows) {
-      const q = normalize(raw, sourceList);
+      const q = normalize(raw, pattern);
       if (!q) {
         skipped += 1;
         continue;
@@ -65,6 +66,10 @@ export async function POST(req: NextRequest) {
       fresh.push(q);
     }
     const created = fresh.length ? await Question.insertMany(fresh) : [];
+    await Promise.all([
+      ensureOptions("platform", fresh.map((q) => q.platform)),
+      ensureOptions("pattern", fresh.map((q) => q.pattern)),
+    ]);
     return NextResponse.json({ imported: created.length, skipped });
   } catch (e) {
     return fail(e, 400);

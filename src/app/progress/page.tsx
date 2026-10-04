@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { Heatmap } from "@/components/Heatmap";
+import { Spinner } from "@/components/Spinner";
 import { formatDate } from "@/lib/dates";
 import type { Stats } from "@/lib/stats";
 import { useApi } from "@/lib/useApi";
@@ -42,7 +43,7 @@ export default function ProgressPage() {
       </div>
 
       {!stats || !cur || stats.period.name !== period ? (
-        <p className="text-muted">Loading…</p>
+        <Spinner />
       ) : (
         <>
           <p className="-mt-3 text-xs text-muted">

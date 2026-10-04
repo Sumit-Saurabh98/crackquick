@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logAttempt, parseAttemptInput } from "@/lib/attempts";
 import { csv, fail } from "@/lib/http";
+import { ensureOptions } from "@/lib/options";
 import { dbConnect } from "@/lib/mongodb";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
 import { listQuestions } from "@/lib/queries";
@@ -35,9 +36,10 @@ export async function POST(req: NextRequest) {
       companies: csv(body.companies),
       difficulty: body.difficulty || "Medium",
       status: body.status === "in_progress" ? "in_progress" : "todo",
-      sourceList: body.sourceList,
+      pattern: body.pattern,
       isStarred: Boolean(body.isStarred),
     });
+    await Promise.all([ensureOptions("platform", [created.platform]), ensureOptions("pattern", [created.pattern])]);
     if (backfill) {
       const { item } = await logAttempt(String(created._id), backfill);
       return NextResponse.json({ item }, { status: 201 });

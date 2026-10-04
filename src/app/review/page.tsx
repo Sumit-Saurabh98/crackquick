@@ -6,6 +6,7 @@ import { ErrorPanel } from "@/components/ErrorPanel";
 import { GradePanel, type AttemptResult } from "@/components/GradePanel";
 import { Markdown } from "@/components/Markdown";
 import { DifficultyPill, RevisionPill } from "@/components/Pills";
+import { Spinner } from "@/components/Spinner";
 import { formatDate } from "@/lib/dates";
 import type { QuestionJSON } from "@/lib/serialize";
 import { useApi } from "@/lib/useApi";
@@ -50,7 +51,7 @@ export default function ReviewPage() {
           }}
         />
       ) : (
-        <p className="text-muted">Loading…</p>
+        <Spinner />
       )}
     </div>
   );
@@ -122,7 +123,7 @@ function Session({ items, onRestart }: { items: QuestionJSON[]; onRestart: () =>
           <h2 className="display mt-2 text-3xl">{q.title}</h2>
           <p className="mt-1 text-xs text-muted">
             {[
-              revealed ? q.topics.join(", ") : "topics hidden until you reveal",
+              revealed ? [q.pattern, ...q.topics].filter(Boolean).join(", ") : "pattern & topics hidden until you reveal",
               q.lastSolvedAt ? `last solved ${formatDate(q.lastSolvedAt)}` : "",
               q.timesSolved ? `${q.timesSolved}× · last confidence ${q.confidence}/5` : "",
             ]

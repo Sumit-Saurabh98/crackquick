@@ -138,17 +138,15 @@ export async function computeStats(period = "day") {
     return { date, count: perDay[date] || 0, future: date > todayKey };
   });
 
-  let countdown: { date: string; daysLeft: number; remaining: number; list: string } | null = null;
+  let countdown: { date: string; daysLeft: number; remaining: number } | null = null;
   if (settings.interviewDate) {
     const target = new Date(settings.interviewDate);
     const daysLeft = Math.max(0, daysBetweenYmd(todayYmd, zonedYmd(target)));
-    const pool = settings.targetList ? questions.filter((q) => q.sourceList === settings.targetList) : questions;
-    const remaining = pool.filter((q) => q.status !== "done").length;
+    const remaining = questions.filter((q) => q.status !== "done").length;
     countdown = {
       date: zonedMidnight(zonedYmd(target)).toISOString(),
       daysLeft,
       remaining,
-      list: settings.targetList,
     };
   }
 

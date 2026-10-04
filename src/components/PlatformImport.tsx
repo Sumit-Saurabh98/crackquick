@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { OptionSelect } from "@/components/OptionSelect";
 import { DifficultyPill } from "@/components/Pills";
 import { send } from "@/lib/api";
 import type { FoundProblem } from "@/lib/platforms";
@@ -27,7 +28,7 @@ const PLATFORMS: { id: PlatformKey; label: string; placeholder: string; hint: st
 export function PlatformImport() {
   const [platform, setPlatform] = useState<PlatformKey>("leetcode");
   const [input, setInput] = useState("");
-  const [sourceList, setSourceList] = useState("");
+  const [pattern, setPattern] = useState("");
   const [found, setFound] = useState<Found[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -58,7 +59,7 @@ export function PlatformImport() {
     setBusy("import");
     try {
       const questions = found.filter((p) => picked.has(p.platformUrl));
-      const r = await send<{ imported: number; skipped: number }>("/api/import", "POST", { questions, sourceList });
+      const r = await send<{ imported: number; skipped: number }>("/api/import", "POST", { questions, pattern });
       setMessage(`Imported ${r.imported}${r.skipped ? `, skipped ${r.skipped} already in your library` : ""}.`);
       setFound(null);
       setInput("");
@@ -112,10 +113,12 @@ export function PlatformImport() {
           <span className="text-xs text-muted">{conf.hint}</span>
         </label>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <label className="grid min-w-[200px] flex-1 gap-1 text-sm">
-            Add to list <span className="text-xs text-muted">optional, e.g. Striver SDE, Amazon prep</span>
-            <input value={sourceList} onChange={(e) => setSourceList(e.target.value)} className="field" />
-          </label>
+          <div className="grid min-w-[240px] flex-1 gap-1 text-sm">
+            <label htmlFor="import-pattern">
+              Pattern <span className="text-xs text-muted">optional, applied to all imported</span>
+            </label>
+            <OptionSelect id="import-pattern" kind="pattern" value={pattern} onChange={setPattern} />
+          </div>
           <button disabled={!input.trim() || busy !== ""} className="btn-primary">
             {busy === "lookup" ? `Looking up on ${conf.label}…` : "Look up"}
           </button>

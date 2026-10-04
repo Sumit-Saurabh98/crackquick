@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { QuestionRow } from "@/components/QuestionRow";
+import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
 import { DIFFICULTIES } from "@/lib/constants";
 import type { Facets } from "@/lib/queries";
@@ -15,7 +16,7 @@ type Page = { items: QuestionJSON[]; total: number; page: number; pages: number 
 
 export default function QuestionsPage() {
   return (
-    <Suspense fallback={<p className="text-muted">Loading…</p>}>
+    <Suspense fallback={<Spinner />}>
       <QuestionsView />
     </Suspense>
   );
@@ -78,7 +79,7 @@ function QuestionsView() {
         <div>
           <p className="eyebrow">Library</p>
           <h1 className="display text-3xl">Questions</h1>
-          <p className="text-sm text-muted">{data ? `${data.total} matching` : "Loading…"}</p>
+          <p className="text-sm text-muted">{data ? `${data.total} matching` : <Spinner size="sm" />}</p>
         </div>
         <Link href="/questions/new" className="btn-primary">
           + Add question
@@ -127,7 +128,7 @@ function QuestionsView() {
           ["4", "Confidence ≤ 4"],
         ])}
         {select("topic", "Any topic", facets?.topics ?? [])}
-        {select("sourceList", "Any list", facets?.sourceLists ?? [])}
+        {select("pattern", "Any pattern", facets?.patterns ?? [])}
         {select("company", "Any company", facets?.companies ?? [])}
         {select("platform", "Any platform", facets?.platforms ?? [])}
         <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2 lg:col-span-3">
@@ -164,6 +165,7 @@ function QuestionsView() {
 
       {error ? <p className="text-sm text-warn">{error}</p> : null}
       <div className="card">
+        {!data ? <Spinner className="min-h-[30vh]" /> : null}
         {data?.items.map((q) => (
           <QuestionRow key={q._id} q={q} onChanged={reload} onLogged={(r) => setToast(attemptMessage(r))} />
         ))}

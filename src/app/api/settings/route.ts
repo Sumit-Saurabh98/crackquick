@@ -8,7 +8,6 @@ import { getSettings, Settings, type SettingsDoc } from "@/models/Settings";
 function shape(s: SettingsDoc) {
   return {
     interviewDate: s.interviewDate ? new Date(s.interviewDate).toISOString() : null,
-    targetList: s.targetList,
     intervals: s.intervals,
     timezone: s.timezone,
   };
@@ -25,7 +24,7 @@ export async function GET() {
   }
 }
 
-/** Body: any of { interviewDate: "YYYY-MM-DD" | null, targetList, intervals: number[] | "1, 3, 7", timezone }. */
+/** Body: any of { interviewDate: "YYYY-MM-DD" | null, intervals: number[] | "1, 3, 7", timezone }. */
 export async function PUT(req: NextRequest) {
   try {
     await dbConnect();
@@ -45,9 +44,8 @@ export async function PUT(req: NextRequest) {
         update.interviewDate = zonedMidnight(ymd);
       }
     }
-    if (body.targetList !== undefined) update.targetList = String(body.targetList);
     if (body.intervals !== undefined) update.intervals = normalizeIntervals(body.intervals);
-    await Settings.updateOne({ key: "main" }, { $set: update, $unset: { dailyNewGoal: "" } }, { upsert: true });
+    await Settings.updateOne({ key: "main" }, { $set: update, $unset: { dailyNewGoal: "", targetList: "" } }, { upsert: true });
     return NextResponse.json(shape(await getSettings()));
   } catch (e) {
     return fail(e, 400);

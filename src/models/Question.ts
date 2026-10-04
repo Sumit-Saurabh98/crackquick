@@ -27,7 +27,7 @@ const QuestionSchema = new Schema(
     confidence: { type: Number, default: 0 },
     timeSpentMinutes: { type: Number, default: 0 },
     totalMinutes: { type: Number, default: 0 },
-    sourceList: { type: String, default: "" },
+    pattern: { type: String, default: "" },
     isStarred: { type: Boolean, default: false },
     archived: { type: Boolean, default: false },
   },

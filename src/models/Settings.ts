@@ -8,7 +8,6 @@ const SettingsSchema = new Schema(
   {
     key: { type: String, default: "main", unique: true },
     interviewDate: { type: Date, default: null },
-    targetList: { type: String, default: "" },
     intervals: { type: [Number], default: DEFAULT_REVISION_INTERVALS },
     timezone: { type: String, default: DEFAULT_TIMEZONE },
   },
@@ -19,7 +18,6 @@ export const Settings = mongoose.models.Settings || mongoose.model("Settings", S
 
 export type SettingsDoc = {
   interviewDate: Date | null;
-  targetList: string;
   intervals: number[];
   timezone: string;
 };
@@ -32,7 +30,6 @@ export async function getSettings(): Promise<SettingsDoc> {
   ).lean<Partial<SettingsDoc>>();
   return {
     interviewDate: doc?.interviewDate ?? null,
-    targetList: doc?.targetList ?? "",
     intervals: normalizeIntervals(doc?.intervals),
     timezone: doc?.timezone && isValidTimezone(doc.timezone) ? doc.timezone : DEFAULT_TIMEZONE,
   };

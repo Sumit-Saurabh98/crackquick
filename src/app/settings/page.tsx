@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { SettingsJSON } from "@/app/api/settings/route";
 import { ErrorPanel } from "@/components/ErrorPanel";
+import { OptionManager } from "@/components/OptionManager";
+import { Spinner } from "@/components/Spinner";
 import { send } from "@/lib/api";
 import { DEFAULT_REVISION_INTERVALS, DEFAULT_TIMEZONE } from "@/lib/constants";
 import { dateKey, setTimezone, timezoneLabel } from "@/lib/dates";
-import type { Facets } from "@/lib/queries";
 import { useApi } from "@/lib/useApi";
 
 export default function SettingsPage() {
@@ -17,18 +18,24 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-6">
       <h1 className="display text-3xl">Settings</h1>
-      {data ? <SettingsForm initial={data} /> : <p className="text-muted">Loading…</p>}
+      {data ? <SettingsForm initial={data} /> : <Spinner className="min-h-[30vh]" />}
+      <section className="card grid gap-4 p-5">
+        <h2 className="display text-xl">Platforms</h2>
+        <OptionManager kind="platform" />
+      </section>
+      <section className="card grid gap-4 p-5">
+        <h2 className="display text-xl">Patterns</h2>
+        <OptionManager kind="pattern" />
+      </section>
       <LibraryTools />
     </div>
   );
 }
 
 function SettingsForm({ initial }: { initial: SettingsJSON }) {
-  const facets = useApi<Facets>("/api/meta").data;
   const router = useRouter();
   const [timezone, setTz] = useState(initial.timezone);
   const [date, setDate] = useState(initial.interviewDate ? dateKey(new Date(initial.interviewDate)) : "");
-  const [list, setList] = useState(initial.targetList);
   const [intervals, setIntervals] = useState(initial.intervals.join(", "));
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
@@ -40,7 +47,6 @@ function SettingsForm({ initial }: { initial: SettingsJSON }) {
     try {
       const saved = await send<SettingsJSON>("/api/settings", "PUT", {
         interviewDate: date || null,
-        targetList: list,
         intervals,
         timezone,
       });
@@ -57,24 +63,13 @@ function SettingsForm({ initial }: { initial: SettingsJSON }) {
 
   return (
     <form onSubmit={save} className="card grid gap-5 p-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-1 text-sm">
-          Interview date
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
-        </label>
-        <label className="grid gap-1 text-sm">
-          Target list
-          <select value={list} onChange={(e) => setList(e.target.value)} className="field">
-            <option value="">All questions</option>
-            {(facets?.sourceLists ?? []).map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </label>
-        <p className="text-xs text-muted sm:col-span-2">
-          With a date set, the Desk shows days left and how many questions a day you need to finish the target list.
-        </p>
-      </div>
+      <label className="grid gap-1 text-sm">
+        Interview date
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field sm:max-w-xs" />
+        <span className="text-xs text-muted">
+          With a date set, the Desk shows days left and how many questions a day you need to finish everything not done.
+        </span>
+      </label>
 
       <label className="grid gap-1 text-sm">
         Revision intervals (days)

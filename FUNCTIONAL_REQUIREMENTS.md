@@ -16,7 +16,7 @@ Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose.
 | Field | Purpose |
 | --- | --- |
 | title | Problem name |
-| platform | Free text (suggestions: platforms already in your data + ones the app can recognise from a link) |
+| platform | Chosen from your **Platforms** list (§1.4) |
 | platformUrl | Link to the problem; stored in canonical form and used to detect duplicates |
 | externalId | LeetCode problem number / GFG problem id; searchable (“146”) and shown as “LeetCode #146” |
 | videoUrl | Explanation video |
@@ -28,7 +28,7 @@ Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose.
 | timesSolved, lapses | Successful solves/revisions; times blanked |
 | lastSolvedAt, nextRevisionAt, revisionStage, confidence | Revision schedule |
 | timeSpentMinutes, totalMinutes | Last and total time |
-| sourceList | Your own list name, e.g. “Striver SDE”, “Amazon prep” |
+| pattern | Chosen from your **Patterns** list (§1.4), e.g. Two pointers, Sliding window |
 | isStarred, archived | Pin; hide without losing history |
 
 ### 1.2 Attempt (activity log)
@@ -37,7 +37,15 @@ One per Log attempt: `questionId`, `type` (`solved` first time / `revised` later
 
 ### 1.3 Settings
 
-`interviewDate`, `targetList`, `intervals` (revision ladder in days, default `1, 3, 7, 14, 30, 60, 90`), `timezone` (default `Asia/Kolkata`, IST).
+`interviewDate`, `intervals` (revision ladder in days, default `1, 3, 7, 14, 30, 60, 90`), `timezone` (default `Asia/Kolkata`, IST).
+
+### 1.4 Platforms and patterns (managed lists)
+
+- Two lists you control: **Platforms** (LeetCode, Codeforces, …) and **Patterns** (Two pointers, Sliding window, …). Nothing is pre-filled.
+- **Create**: “+ Add new…” at the bottom of the dropdown while adding/editing a question, or in Settings.
+- **Rename**: in the dropdown's **Manage** dialog or Settings; every question using the old name is updated. Names are unique ignoring case.
+- **Delete**: shows how many questions use it; those questions keep everything else and just lose that value.
+- A value used by a question is always in its list: importing from LeetCode/GFG adds that platform automatically; a platform detected from a pasted link is added when the question is saved.
 
 ---
 
@@ -48,12 +56,12 @@ One per Log attempt: `questionId`, `type` (`solved` first time / `revised` later
   - GeeksforGeeks: links, problem ids, slugs or names.
   - Up to 100 per lookup; preview with checkboxes in your input order; ones already in the library are flagged.
   - Fills title, difficulty, topics (platform tags), companies, problem number and a YouTube search link for a video.
-  - Optional list name applied to everything imported.
+  - Optional pattern applied to everything imported.
 - **Add manually**: pasting a LeetCode/GFG link fetches the same details.
 - **Already solved before using the app?** Tick it when adding (or in the Log dialog for an untouched question) with the date and how well you know it. It's scheduled from that date, so old solves land in the review queue if they're due.
 - Edit any field except the schedule (that changes only by logging attempts). Status can be reset to todo / in progress (clears the schedule; history kept). **Done is reached only by logging an attempt.**
 - Archive (hide, keep history) or Delete (removes question and its history).
-- Library: search (title, notes, topics, companies, problem number), filters (schedule, difficulty, status, last done, confidence, topic, list, company, platform, starred, archived; options come from your data), sort, 50 per page, filters kept in the URL.
+- Library: search (title, notes, topics, companies, pattern, problem number), filters (schedule, difficulty, status, last done, confidence, topic, pattern, company, platform, starred, archived; options come from your data), sort, 50 per page, filters kept in the URL.
 
 ## 3. Revision
 
@@ -82,7 +90,7 @@ Next review = midnight (in the app timezone, IST by default) today + that step's
 
 ### 3.4 Review session
 
-Steps through due + overdue (or in progress / low confidence / starred). Notes and topic tags are hidden until **Reveal** so you recall first. Keys: `Space` reveal, `1–5` grade, `B` blanked, `S` skip. Ends with a short summary.
+Steps through due + overdue (or in progress / low confidence / starred). Notes, pattern and topic tags are hidden until **Reveal** so you recall first. Keys: `Space` reveal, `1–5` grade, `B` blanked, `S` skip. Ends with a short summary.
 
 ### 3.5 Undo
 
@@ -105,7 +113,8 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 
 ## 5. Settings & data
 
-- Interview date, target list, revision intervals, timezone (default IST).
+- Interview date, revision intervals, timezone (default IST).
+- Platforms and Patterns lists (add / rename / delete).
 - Import JSON, export a full JSON backup.
 - `npm run reset-db` (dry run) / `npm run reset-db -- --yes`: backs up to `backups/` then deletes all questions and history (settings kept).
 

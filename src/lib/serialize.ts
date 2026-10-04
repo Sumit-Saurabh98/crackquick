@@ -18,7 +18,7 @@ export type QuestionJSON = {
   confidence: number;
   timeSpentMinutes: number;
   totalMinutes: number;
-  sourceList: string;
+  pattern: string;
   isStarred: boolean;
   archived: boolean;
   createdAt: string;
@@ -52,7 +52,7 @@ export function serializeQuestion(doc: Record<string, unknown>): QuestionJSON {
     confidence: Number(doc.confidence ?? 0),
     timeSpentMinutes: Number(doc.timeSpentMinutes ?? 0),
     totalMinutes: Number(doc.totalMinutes ?? 0),
-    sourceList: String(doc.sourceList ?? ""),
+    pattern: String(doc.pattern ?? ""),
     isStarred: Boolean(doc.isStarred),
     archived: Boolean(doc.archived),
     createdAt: iso(doc.createdAt) ?? new Date().toISOString(),

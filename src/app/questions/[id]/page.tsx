@@ -9,6 +9,7 @@ import { ErrorPanel } from "@/components/ErrorPanel";
 import { Markdown } from "@/components/Markdown";
 import { DifficultyPill, RevisionPill, StatusPill } from "@/components/Pills";
 import { QuestionForm } from "@/components/QuestionForm";
+import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
 import { send } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
@@ -63,7 +64,7 @@ export default function QuestionDetailPage() {
 
   if (question.error && !question.data) return <ErrorPanel error={question.error} />;
   const item = question.data?.item;
-  if (!item) return <p className="text-muted">Loading…</p>;
+  if (!item) return <Spinner />;
   const attempts = history.data?.items ?? [];
 
   return (
@@ -82,7 +83,12 @@ export default function QuestionDetailPage() {
             <StatusPill value={item.status} />
             <RevisionPill q={item} />
             {item.archived ? <span className="pill bg-white/5 text-muted">archived</span> : null}
-            {[item.sourceList, ...item.topics].filter(Boolean).map((tag, i) => (
+            {item.pattern ? (
+              <Link href={`/questions?pattern=${encodeURIComponent(item.pattern)}`} className="pill bg-brass/15 text-brass2 normal-case">
+                {item.pattern}
+              </Link>
+            ) : null}
+            {item.topics.map((tag, i) => (
               <span key={`${tag}-${i}`} className="pill bg-white/5 text-muted normal-case">
                 {tag}
               </span>

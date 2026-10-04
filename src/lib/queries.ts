@@ -1,6 +1,7 @@
 import type { PipelineStage } from "mongoose";
 import { PAGE_SIZE } from "./constants";
 import { addDays, startOfToday } from "./dates";
+import { listOptions } from "./options";
 import { serializeQuestion } from "./serialize";
 import { Question } from "@/models/Question";
 
@@ -18,7 +19,7 @@ export function buildQuestionFilter(search: URLSearchParams): Record<string, unk
   if (get("topic")) filter.topics = get("topic");
   if (get("platform")) filter.platform = get("platform");
   if (get("company")) filter.companies = get("company");
-  if (get("sourceList")) filter.sourceList = get("sourceList");
+  if (get("pattern")) filter.pattern = get("pattern");
   if (get("starred") === "1") filter.isStarred = true;
   if (get("maxConfidence")) {
     filter.confidence = { $gt: 0, $lte: Number(get("maxConfidence")) };
@@ -27,7 +28,14 @@ export function buildQuestionFilter(search: URLSearchParams): Record<string, unk
   const text = get("q").trim();
   if (text) {
     const rx = { $regex: escapeRegex(text), $options: "i" };
-    filter.$or = [{ title: rx }, { notes: rx }, { topics: rx }, { companies: rx }, { externalId: text.replace(/^#/, "") }];
+    filter.$or = [
+      { title: rx },
+      { notes: rx },
+      { topics: rx },
+      { companies: rx },
+      { pattern: rx },
+      { externalId: text.replace(/^#/, "") },
+    ];
   }
 
   const today = startOfToday();
@@ -132,17 +140,17 @@ export async function questionFacets() {
       .map(String)
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
-  const [topics, companies, sourceLists, platforms] = await Promise.all([
+  const [topics, companies, platforms, patterns] = await Promise.all([
     Question.distinct("topics", live),
     Question.distinct("companies", live),
-    Question.distinct("sourceList", live),
-    Question.distinct("platform", live),
+    listOptions("platform"),
+    listOptions("pattern"),
   ]);
   return {
     topics: clean(topics),
     companies: clean(companies),
-    sourceLists: clean(sourceLists),
-    platforms: clean(platforms),
+    platforms: platforms.map((o) => o.name),
+    patterns: patterns.map((o) => o.name),
   };
 }
 

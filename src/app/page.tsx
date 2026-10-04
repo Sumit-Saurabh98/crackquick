@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { Heatmap } from "@/components/Heatmap";
 import { DifficultyPill, RevisionPill } from "@/components/Pills";
+import { Spinner } from "@/components/Spinner";
 import { formatDate } from "@/lib/dates";
 import type { Stats } from "@/lib/stats";
 import { useApi } from "@/lib/useApi";
@@ -12,7 +13,7 @@ export default function DeskPage() {
   const { data: stats, error } = useApi<Stats>("/api/stats?period=day");
 
   if (error && !stats) return <ErrorPanel error={error} />;
-  if (!stats) return <p className="text-muted">Loading…</p>;
+  if (!stats) return <Spinner />;
 
   const t = stats.totals;
   if (t.total === 0) {
@@ -60,8 +61,7 @@ export default function DeskPage() {
       {stats.countdown ? (
         <p className="text-sm text-muted">
           <span className="text-ink">{stats.countdown.daysLeft} days</span> to interview (
-          {formatDate(stats.countdown.date)}) · {stats.countdown.remaining} left
-          {stats.countdown.list ? ` in ${stats.countdown.list}` : ""}
+          {formatDate(stats.countdown.date)}) · {stats.countdown.remaining} not done yet
           {stats.countdown.remaining > 0 ? (
             <>
               {" "}

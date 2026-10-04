@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { OptionSelect } from "@/components/OptionSelect";
 import { useRef, useState } from "react";
 import { send } from "@/lib/api";
 import { CONFIDENCE_LABELS, DIFFICULTIES } from "@/lib/constants";
 import { dateKey } from "@/lib/dates";
 import type { FoundProblem } from "@/lib/platforms";
-import { KNOWN_PLATFORMS, parseProblemUrl } from "@/lib/problemUrl";
+import { parseProblemUrl } from "@/lib/problemUrl";
 import type { Facets } from "@/lib/queries";
 import type { QuestionJSON } from "@/lib/serialize";
 import { useApi } from "@/lib/useApi";
@@ -21,7 +22,7 @@ const EMPTY = {
   notes: "",
   difficulty: "Medium" as QuestionJSON["difficulty"],
   status: "todo" as QuestionJSON["status"],
-  sourceList: "",
+  pattern: "",
   isStarred: false,
 };
 
@@ -125,7 +126,6 @@ export function QuestionForm({
     }
   }
 
-  const platformOptions = [...new Set([...(facets?.platforms ?? []), ...KNOWN_PLATFORMS])];
   const resettingDone = editing && initial?.status === "done" && form.status !== "done";
 
   return (
@@ -157,22 +157,17 @@ export function QuestionForm({
         Title
         <input required value={form.title} onChange={(e) => set("title", e.target.value)} className="field" />
       </label>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <label className="grid gap-1 text-sm">
-          Platform
-          <input
-            list="platform-options"
-            value={form.platform}
-            onChange={(e) => set("platform", e.target.value)}
-            className="field"
-            placeholder="LeetCode, GFG, …"
-          />
-          <datalist id="platform-options">
-            {platformOptions.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
-        </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid content-start gap-1 text-sm">
+          <label htmlFor="q-platform">Platform</label>
+          <OptionSelect id="q-platform" kind="platform" value={form.platform} onChange={(v) => set("platform", v)} />
+        </div>
+        <div className="grid content-start gap-1 text-sm">
+          <label htmlFor="q-pattern">Pattern</label>
+          <OptionSelect id="q-pattern" kind="pattern" value={form.pattern} onChange={(v) => set("pattern", v)} />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid gap-1 text-sm">
           Difficulty
           <select
@@ -216,23 +211,6 @@ export function QuestionForm({
           inputMode="url"
         />
       </label>
-      <div className="grid gap-4">
-        <label className="grid gap-1 text-sm">
-          Source list
-          <input
-            list="source-options"
-            value={form.sourceList}
-            onChange={(e) => set("sourceList", e.target.value)}
-            className="field"
-            placeholder="Blind 75, NeetCode 150, custom"
-          />
-          <datalist id="source-options">
-            {(facets?.sourceLists ?? []).map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
-        </label>
-      </div>
       <label className="grid gap-1 text-sm">
         Topics <span className="text-xs text-muted">comma separated{facets?.topics.length ? ` · existing: ${facets.topics.slice(0, 12).join(", ")}` : ""}</span>
         <input value={topics} onChange={(e) => setTopics(e.target.value)} className="field" placeholder="Arrays, Hashing" />

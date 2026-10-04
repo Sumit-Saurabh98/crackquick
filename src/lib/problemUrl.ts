@@ -10,9 +10,6 @@ const HOSTS: [RegExp, string, RegExp][] = [
   [/interviewbit\.com$/, "InterviewBit", /\/problems\/([^/]+)/],
 ];
 
-/** Platform names this app can recognise from a link (used as suggestions alongside ones in your data). */
-export const KNOWN_PLATFORMS = HOSTS.map(([, name]) => name);
-
 function titleFromSlug(slug: string) {
   return slug
     .replace(/[-_]\d+$/, "")

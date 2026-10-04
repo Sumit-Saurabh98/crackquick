@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { csv, fail, notFoundUnlessValidId } from "@/lib/http";
 import { dbConnect } from "@/lib/mongodb";
+import { ensureOptions } from "@/lib/options";
 import { serializeQuestion } from "@/lib/serialize";
 import { ActivityEvent } from "@/models/Event";
 import { Question } from "@/models/Question";
@@ -15,7 +16,7 @@ const EDITABLE = [
   "videoUrl",
   "notes",
   "difficulty",
-  "sourceList",
+  "pattern",
   "isStarred",
   "archived",
 ] as const;
@@ -67,6 +68,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     }
 
     await q.save();
+    await Promise.all([ensureOptions("platform", [q.platform]), ensureOptions("pattern", [q.pattern])]);
     return NextResponse.json({ item: serializeQuestion(q.toObject()) });
   } catch (e) {
     return fail(e, 400);
