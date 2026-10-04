@@ -33,7 +33,9 @@ export function OptionSelect({
 
   const names = (data?.items ?? []).map((o) => o.name);
   // A value not in the list yet (e.g. detected from a pasted link) is still selectable; it's added on save.
-  const pending = value && !names.some((n) => n.toLowerCase() === value.toLowerCase()) ? value : "";
+  // Match ignoring case, so a question saved as "LeetCode" shows the list's "Leetcode" selected.
+  const match = names.find((n) => n.toLowerCase() === value.toLowerCase());
+  const pending = value && !match ? value : "";
 
   async function add() {
     if (!newName.trim()) return;
@@ -78,7 +80,7 @@ export function OptionSelect({
         <div className="flex gap-2">
           <select
             id={id}
-            value={value}
+            value={match ?? value}
             onChange={(e) => (e.target.value === ADD_NEW ? setAdding(true) : onChange(e.target.value))}
             className="field min-w-0 flex-1"
           >

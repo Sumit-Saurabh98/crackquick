@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { csv, fail, notFoundUnlessValidId } from "@/lib/http";
 import { dbConnect } from "@/lib/mongodb";
-import { ensureOptions } from "@/lib/options";
+import { canonicalName } from "@/lib/options";
 import { serializeQuestion } from "@/lib/serialize";
 import { ActivityEvent } from "@/models/Event";
 import { Question } from "@/models/Question";
@@ -67,8 +67,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       q.revisionStage = 0;
     }
 
+    // Store the list's spelling (and add new names to the list).
+    if (body.platform !== undefined) q.platform = await canonicalName("platform", body.platform);
+    if (body.pattern !== undefined) q.pattern = await canonicalName("pattern", body.pattern);
     await q.save();
-    await Promise.all([ensureOptions("platform", [q.platform]), ensureOptions("pattern", [q.pattern])]);
     return NextResponse.json({ item: serializeQuestion(q.toObject()) });
   } catch (e) {
     return fail(e, 400);

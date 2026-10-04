@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DIFFICULTIES } from "@/lib/constants";
 import { csv, fail } from "@/lib/http";
 import { dbConnect } from "@/lib/mongodb";
-import { ensureOptions } from "@/lib/options";
+import { canonicalNames } from "@/lib/options";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
 import { Question } from "@/models/Question";
 
@@ -65,11 +65,16 @@ export async function POST(req: NextRequest) {
       titles.add(q.title.toLowerCase());
       fresh.push(q);
     }
-    const created = fresh.length ? await Question.insertMany(fresh) : [];
-    await Promise.all([
-      ensureOptions("platform", fresh.map((q) => q.platform)),
-      ensureOptions("pattern", fresh.map((q) => q.pattern)),
+    // Use the list's spelling, e.g. your "Leetcode" rather than the importer's "LeetCode".
+    const [platformName, patternName] = await Promise.all([
+      canonicalNames("platform", fresh.map((q) => q.platform)),
+      canonicalNames("pattern", fresh.map((q) => q.pattern)),
     ]);
+    for (const q of fresh) {
+      q.platform = platformName(q.platform);
+      q.pattern = patternName(q.pattern);
+    }
+    const created = fresh.length ? await Question.insertMany(fresh) : [];
     return NextResponse.json({ imported: created.length, skipped });
   } catch (e) {
     return fail(e, 400);

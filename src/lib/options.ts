@@ -39,13 +39,44 @@ export async function ensureOptions(kind: OptionKind, names: unknown[]) {
   );
 }
 
+/**
+ * Returns a mapper to the list's own spelling (creating names that are missing), so a question
+ * saved as "LeetCode" uses "Leetcode" if that's how the list has it. Empty names stay empty.
+ */
+export async function canonicalNames(kind: OptionKind, names: unknown[]) {
+  await ensureOptions(kind, names);
+  const keys = [...new Set(names.map(clean).filter(Boolean).map(keyOf))];
+  const docs = keys.length ? await ListOption.find({ kind, key: { $in: keys } }).lean() : [];
+  const byKey = new Map(docs.map((d) => [String(d.key), String(d.name)]));
+  return (name: unknown) => {
+    const c = clean(name);
+    return c ? (byKey.get(keyOf(c)) ?? c) : "";
+  };
+}
+
+export async function canonicalName(kind: OptionKind, name: unknown) {
+  return (await canonicalNames(kind, [name]))(name);
+}
+
 /** The list with how many (non-archived) questions use each value, A–Z. */
 export async function listOptions(kind: OptionKind): Promise<OptionJSON[]> {
   const field = OPTION_KINDS[kind].field;
   // Values already on questions (e.g. from an older import) join the list automatically.
   await ensureOptions(kind, await Question.distinct(field, { [field]: { $nin: [null, ""] } }));
-  const [options, usage] = await Promise.all([
-    ListOption.find({ kind }).sort({ key: 1 }).lean(),
+  const options = await ListOption.find({ kind }).sort({ key: 1 }).lean();
+  // Repair questions whose value differs from the list only in letter case ("LeetCode" vs "Leetcode").
+  if (options.length) {
+    await Question.bulkWrite(
+      options.map((o) => ({
+        updateMany: {
+          filter: { $and: [{ [field]: sameName(String(o.name)) }, { [field]: { $ne: String(o.name) } }] },
+          update: { $set: { [field]: String(o.name) } },
+        },
+      })),
+      { ordered: false },
+    );
+  }
+  const [usage] = await Promise.all([
     Question.aggregate<{ _id: string; n: number }>([
       { $match: { archived: { $ne: true }, [field]: { $nin: [null, ""] } } },
       { $group: { _id: { $toLower: `$${field}` }, n: { $sum: 1 } } },
