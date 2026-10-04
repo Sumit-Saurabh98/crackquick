@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CrackQuick
 
-## Getting Started
+Personal DSA interview tracker with spaced revision (Next.js 16 + MongoDB). Spec: [FUNCTIONAL_REQUIREMENTS.md](./FUNCTIONAL_REQUIREMENTS.md).
 
-First, run the development server:
+## Run
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Copy `.env.example` to `.env.local` and fill in your Atlas connection string.
+2. `npm install`
+3. `npm run dev` and open http://localhost:3000
+4. **+ Add** → **From LeetCode / GFG**: enter problem numbers (`1, 15, 146`, `200-210`), links or names.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Using it
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Log** on a question → *Blanked* or confidence 1–5. That schedules the next review on your ladder (Settings → Revision intervals, default 1 / 3 / 7 / 14 / 30 / 60 / 90 days).
+- **Review** steps through what's due with notes and topics hidden until you reveal them. Keys: `Space` reveal, `1–5` grade, `B` blanked, `S` skip.
+- Solved something before using the app? Tick **“already solved”** when adding it, with the date.
+- **Undo last log** on the question page reverts a mis-click.
+- All dates and "today" are in IST by default (Settings → Timezone), whatever the device or server timezone.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+- `npm run reset-db`: shows what's in the database. `npm run reset-db -- --yes` backs everything up to `backups/` and deletes all questions and history (settings kept).
+- `npm run update:companies`: refreshes LeetCode company tags from the community dataset into `src/data/leetcode-companies.json`.
 
-To learn more about Next.js, take a look at the following resources:
+## Layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/lib/revision.ts`: schedule rules
+- `src/lib/attempts.ts`: logging + undo
+- `src/lib/stats.ts`: Desk / Progress numbers
+- `src/lib/platforms.ts`: LeetCode / GFG lookups
+- `src/lib/dates.ts`: calendar helpers in the app timezone
+- `src/models/`: Question, ActivityEvent, Settings

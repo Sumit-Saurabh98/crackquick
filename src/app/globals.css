@@ -1,26 +1,296 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0b0f14;
+  --bg-2: #121821;
+  --ink: #e8edf4;
+  --muted: #8b97a8;
+  --line: #243042;
+  --brass: #e0b366;
+  --brass-2: #f0d9a8;
+  --good: #3dba8b;
+  --warn: #e07a5f;
+  --easy: #7dcea0;
+  --medium: #e8c36a;
+  --hard: #e07a5f;
+  --heat-0: #1a2330;
+  --heat-1: #2f5c48;
+  --heat-2: #3dba8b;
+  --heat-3: #e0b366;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brass: var(--brass);
+  --color-brass2: var(--brass-2);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-easy: var(--easy);
+  --color-medium: var(--medium);
+  --color-hard: var(--hard);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    radial-gradient(1200px 500px at 10% -10%, rgba(224, 179, 102, 0.08), transparent 50%),
+    radial-gradient(900px 400px at 100% 0%, rgba(61, 186, 139, 0.06), transparent 45%);
+  min-height: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+/* Everything clickable gets a pointer (Tailwind v4's reset leaves buttons on the default cursor). */
+a[href],
+button,
+select,
+summary,
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]),
+label:has(> input[type="file"]),
+input[type="checkbox"],
+input[type="radio"],
+input[type="date"],
+input[type="file"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+/* Custom chevron so the arrow sits inside the field with breathing room instead of hugging the border. */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238b97a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 36px !important;
+  text-overflow: ellipsis;
+}
+
+select option {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+/* Grid items default to min-width:auto, so a wide child (heatmap, long title) would stretch the page. */
+.grid > * {
+  min-width: 0;
+}
+
+.card {
+  background: color-mix(in srgb, var(--bg-2) 88%, black);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.pill {
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  font-weight: 600;
+}
+
+.field {
+  border: 1px solid var(--line);
+  background-color: var(--bg);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.field:focus-visible,
+.btn:focus-visible,
+.btn-primary:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+.btn,
+.btn-primary {
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms, opacity 120ms;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.btn:hover {
+  border-color: color-mix(in srgb, var(--brass) 50%, var(--line));
+}
+
+.btn-primary {
+  background: var(--brass);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--brass-2);
+}
+
+.btn:disabled,
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--brass);
+  border-color: var(--brass);
+  color: var(--bg);
+}
+
+.eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+
+.display {
+  font-family: var(--font-fraunces), Georgia, serif;
+}
+
+kbd {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4px;
+  color: var(--muted);
+}
+
+.prose-notes {
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.prose-notes > * + * {
+  margin-top: 0.75em;
+}
+
+.prose-notes h1,
+.prose-notes h2,
+.prose-notes h3 {
+  font-weight: 600;
+  color: var(--brass-2);
+}
+
+.prose-notes h1 {
+  font-size: 1.25em;
+}
+
+.prose-notes h2 {
+  font-size: 1.1em;
+}
+
+.prose-notes ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+
+.prose-notes ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+}
+
+.prose-notes a {
+  color: var(--brass-2);
+  text-decoration: underline;
+}
+
+.prose-notes code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.prose-notes pre {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.prose-notes pre code {
+  background: none;
+  padding: 0;
+}
+
+.prose-notes table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.prose-notes th,
+.prose-notes td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+}
+
+.prose-notes blockquote {
+  border-left: 3px solid var(--brass);
+  padding-left: 12px;
+  color: var(--muted);
 }

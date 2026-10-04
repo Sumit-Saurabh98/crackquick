@@ -1,69 +1,171 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { ErrorPanel } from "@/components/ErrorPanel";
+import { Heatmap } from "@/components/Heatmap";
+import { DifficultyPill, RevisionPill } from "@/components/Pills";
+import { formatDate } from "@/lib/dates";
+import type { Stats } from "@/lib/stats";
+import { useApi } from "@/lib/useApi";
+
+export default function DeskPage() {
+  const { data: stats, error } = useApi<Stats>("/api/stats?period=day");
+
+  if (error && !stats) return <ErrorPanel error={error} />;
+  if (!stats) return <p className="text-muted">Loading…</p>;
+
+  const t = stats.totals;
+  if (t.total === 0) {
+    return (
+      <div className="card mx-auto grid max-w-xl gap-4 p-8 text-center">
+        <h1 className="display text-3xl text-brass2">Start your list</h1>
+        <p className="text-sm text-muted">
+          Add problems from LeetCode or GeeksforGeeks by number or link, or add your own.
+        </p>
+        <div className="flex justify-center">
+          <Link href="/questions/new" className="btn-primary">
+            Add questions
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const queueCount = t.overdue + t.dueToday;
+  const pct = Math.round((t.done / t.total) * 100);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="grid gap-6">
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">{formatDate(new Date())}</p>
+          <h1 className="display text-4xl text-brass2">
+            {t.done} / {t.total} done
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-1 text-sm text-muted">
+            {pct}% · {t.inProgress} in progress · {t.todo} not started
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        {queueCount > 0 ? (
+          <Link href="/review" className="btn-primary">
+            Start review · {queueCount}
+          </Link>
+        ) : null}
+      </section>
+
+      <div className="h-2 overflow-hidden rounded-full bg-white/5" aria-label={`${pct}% done`}>
+        <div className="h-full bg-good" style={{ width: `${pct}%` }} />
+      </div>
+
+      {stats.countdown ? (
+        <p className="text-sm text-muted">
+          <span className="text-ink">{stats.countdown.daysLeft} days</span> to interview (
+          {formatDate(stats.countdown.date)}) · {stats.countdown.remaining} left
+          {stats.countdown.list ? ` in ${stats.countdown.list}` : ""}
+          {stats.countdown.remaining > 0 ? (
+            <>
+              {" "}
+              → <span className="text-ink">{pace(stats.countdown.remaining, stats.countdown.daysLeft)}</span>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile label="Due today" value={t.dueToday} href="/questions?revision=due" />
+        <Tile label="Overdue" value={t.overdue} href="/questions?revision=overdue" warn={t.overdue > 0} />
+        <Tile label="In progress" value={t.inProgress} href="/questions?status=in_progress" />
+        <Tile
+          label="Streak"
+          value={`${stats.streak.current}d`}
+          hint={stats.streak.activeToday || stats.streak.current === 0 ? `best ${stats.streak.longest}d` : "practise today to keep it"}
+        />
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="display text-xl">To revise</h2>
+            {queueCount > stats.reviewQueue.length ? (
+              <Link href="/questions?revision=queue" className="text-sm text-brass2">
+                All {queueCount}
+              </Link>
+            ) : null}
+          </div>
+          {stats.reviewQueue.length === 0 ? (
+            <p className="text-sm text-muted">Nothing due. Solve something new.</p>
+          ) : (
+            <ul className="grid gap-2">
+              {stats.reviewQueue.map((q) => (
+                <li key={q._id}>
+                  <Link
+                    href={`/questions/${q._id}`}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-line px-3 py-2 hover:border-brass/40"
+                  >
+                    <span className="font-medium">{q.title}</span>
+                    <DifficultyPill value={q.difficulty} />
+                    <RevisionPill q={q} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card p-4">
+          <h2 className="display text-xl">Topics</h2>
+          <ul className="mt-3 grid gap-2">
+            {stats.topics.slice(0, 8).map((tp) => (
+              <li key={tp.topic} className="text-sm">
+                <Link href={`/questions?topic=${encodeURIComponent(tp.topic)}`} className="flex justify-between gap-2 hover:text-brass2">
+                  <span className="truncate">{tp.topic}</span>
+                  <span className="shrink-0 text-muted">
+                    {tp.done}/{tp.total}
+                    {tp.overdue ? <span className="text-warn"> · {tp.overdue} overdue</span> : null}
+                  </span>
+                </Link>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/5">
+                  <div className="h-full bg-good" style={{ width: `${tp.pct}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+          {stats.topics.length > 8 ? (
+            <Link href="/progress" className="mt-3 inline-block text-sm text-brass2">
+              All topics
+            </Link>
+          ) : null}
+        </section>
+      </div>
+
+      <section className="card p-4">
+        <h2 className="display mb-3 text-xl">Activity</h2>
+        <Heatmap cells={stats.heatmap} />
+      </section>
     </div>
+  );
+}
+
+/** "3/day", or "1 every 4 days" when less than one a day is needed. */
+function pace(remaining: number, daysLeft: number) {
+  if (daysLeft <= 0) return `${remaining} today`;
+  const perDay = remaining / daysLeft;
+  return perDay >= 1 ? `${Math.ceil(perDay * 10) / 10}/day` : `1 every ${Math.floor(daysLeft / remaining)} days`;
+}
+
+function Tile({ label, value, hint, href, warn }: { label: string; value: number | string; hint?: string; href?: string; warn?: boolean }) {
+  const body = (
+    <>
+      <p className="eyebrow">{label}</p>
+      <p className={`display mt-1 text-3xl ${warn ? "text-warn" : ""}`}>{value}</p>
+      {hint ? <p className="text-xs text-muted">{hint}</p> : null}
+    </>
+  );
+  return href ? (
+    <Link href={href} className="card block p-4 hover:border-brass/40">
+      {body}
+    </Link>
+  ) : (
+    <div className="card p-4">{body}</div>
   );
 }

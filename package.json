@@ -1,17 +1,22 @@
 {
-  "name": "tmp-app",
+  "name": "crackquick",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "update:companies": "node scripts/build-leetcode-companies.mjs",
+    "reset-db": "node scripts/reset-db.mjs"
   },
   "dependencies": {
+    "mongoose": "^8.19.1",
     "next": "16.3.8",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
