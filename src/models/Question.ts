@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { defineModel } from "./model";
 
 export const QUESTION_STATUSES = ["todo", "in_progress", "done"] as const;
 export const QUESTION_DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
@@ -45,4 +46,4 @@ export type QuestionDoc = mongoose.InferSchemaType<typeof QuestionSchema> & {
 };
 
 export const Question =
-  mongoose.models.Question || mongoose.model("Question", QuestionSchema);
+  defineModel("Question", QuestionSchema);

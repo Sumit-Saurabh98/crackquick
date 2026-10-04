@@ -1,4 +1,5 @@
-import mongoose, { Schema } from "mongoose";
+import { Schema } from "mongoose";
+import { defineModel } from "./model";
 import { DEFAULT_REVISION_INTERVALS, DEFAULT_TIMEZONE } from "@/lib/constants";
 import { isValidTimezone } from "@/lib/dates";
 import { normalizeIntervals } from "@/lib/revision";
@@ -14,7 +15,7 @@ const SettingsSchema = new Schema(
   { timestamps: true },
 );
 
-export const Settings = mongoose.models.Settings || mongoose.model("Settings", SettingsSchema);
+export const Settings = defineModel("Settings", SettingsSchema);
 
 export type SettingsDoc = {
   interviewDate: Date | null;

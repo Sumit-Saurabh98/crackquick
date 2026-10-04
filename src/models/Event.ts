@@ -1,4 +1,5 @@
-import mongoose, { Schema } from "mongoose";
+import { Schema } from "mongoose";
+import { defineModel } from "./model";
 
 /** Scheduling fields of a question before an attempt, for "Undo last log". */
 const SnapshotSchema = new Schema(
@@ -39,4 +40,4 @@ EventSchema.index({ at: 1 });
 EventSchema.index({ questionId: 1, at: -1 });
 
 export const ActivityEvent =
-  mongoose.models.ActivityEvent || mongoose.model("ActivityEvent", EventSchema);
+  defineModel("ActivityEvent", EventSchema);

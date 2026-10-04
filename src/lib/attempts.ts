@@ -72,7 +72,7 @@ export async function logAttempt(id: string, input: AttemptInput) {
 
   const { intervals } = await getSettings();
   const at = input.solvedAt ?? new Date();
-  const state = revisionState(q.nextRevisionAt, at);
+  const state = revisionState(q.nextRevisionAt ?? null, at);
   const kind = attemptKind(input.outcome, q.timesSolved ?? 0);
   const prev = Object.fromEntries(SNAPSHOT_KEYS.map((k) => [k, q.get(k)]));
 
