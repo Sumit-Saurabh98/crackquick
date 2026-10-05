@@ -10,6 +10,7 @@ function shape(s: SettingsDoc) {
     interviewDate: s.interviewDate ? new Date(s.interviewDate).toISOString() : null,
     intervals: s.intervals,
     timezone: s.timezone,
+    playlists: s.playlists,
   };
 }
 
@@ -24,7 +25,7 @@ export async function GET() {
   }
 }
 
-/** Body: any of { interviewDate: "YYYY-MM-DD" | null, intervals: number[] | "1, 3, 7", timezone }. */
+/** Body: any of { interviewDate: "YYYY-MM-DD" | null, intervals: number[] | "1, 3, 7", timezone }. Playlists have their own API (/api/playlists). */
 export async function PUT(req: NextRequest) {
   try {
     await dbConnect();

@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { SettingsJSON } from "@/app/api/settings/route";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { OptionManager } from "@/components/OptionManager";
+import { PlaylistSettings } from "@/components/PlaylistSettings";
 import { Spinner } from "@/components/Spinner";
 import { send } from "@/lib/api";
 import { DEFAULT_REVISION_INTERVALS, DEFAULT_TIMEZONE } from "@/lib/constants";
@@ -28,6 +29,15 @@ export default function SettingsPage() {
         <OptionManager kind="pattern" />
       </section>
       <LibraryTools />
+      {data ? (
+        <section className="card grid gap-4 p-5">
+          <div>
+            <h2 className="display text-xl">Music playlists</h2>
+            <p className="text-xs text-muted">Shown in the ♪ Music player (bottom-right). Order here = order in its dropdown.</p>
+          </div>
+          <PlaylistSettings />
+        </section>
+      ) : null}
     </div>
   );
 }

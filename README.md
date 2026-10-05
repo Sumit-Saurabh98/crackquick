@@ -14,6 +14,7 @@ Personal DSA interview tracker with spaced revision (Next.js 16 + MongoDB). Spec
 - **Log** on a question → *Blanked* or confidence 1–5. That schedules the next review on your ladder (Settings → Revision intervals, default 1 / 3 / 7 / 14 / 30 / 60 / 90 days).
 - **Review** steps through what's due with notes and topics hidden until you reveal them. Keys: `Space` reveal, `1–5` grade, `B` blanked, `S` skip.
 - **Platform** and **Pattern** are dropdowns you manage: “+ Add new…” in the dropdown, **Manage** to rename/delete (also in Settings).
+- **♪ Music** (bottom-right) plays your YouTube playlists from Settings → Music playlists, with previous / play-pause / next. Minimize (–) hides it while the music keeps playing; the floating button shows the song and reopens it.
 - Solved something before using the app? Tick **“already solved”** when adding it, with the date.
 - **Undo last log** on the question page reverts a mis-click.
 - All dates and "today" are in IST by default (Settings → Timezone), whatever the device or server timezone.

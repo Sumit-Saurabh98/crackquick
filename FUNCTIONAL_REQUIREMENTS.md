@@ -118,6 +118,13 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 - Import JSON, export a full JSON backup.
 - `npm run reset-db` (dry run) / `npm run reset-db -- --yes`: backs up to `backups/` then deletes all questions and history (settings kept).
 
+## 5a. Music player
+
+- **♪ Music** button (bottom-right, every page) opens a small player for your YouTube playlists (Settings → Music playlists: add / edit / delete / reorder; any YouTube playlist, mix or video link).
+- Playlist dropdown, song title, “Song n of N”, previous / play-pause / next. Unplayable songs are skipped automatically. Remembers the last playlist on this device.
+- Keeps playing while you move between pages. **Minimize (–)** hides the player completely (video included) while the music keeps playing; the floating button shows the current song with play/pause and reopens the player. ✕ stops it.
+- Note: YouTube's embed terms ask for a visible player; hiding it is a deliberate choice for this personal app.
+
 ## 6. Non-functional
 
 - `MONGODB_URI` only in `.env.local` (git-ignored); `.env.example` is a placeholder.

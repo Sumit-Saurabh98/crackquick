@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
+import { MusicDock } from "@/components/MusicDock";
 import { Nav } from "@/components/Nav";
 import { TimezoneInit } from "@/components/TimezoneInit";
 import { DEFAULT_TIMEZONE } from "@/lib/constants";
 import { getTimezone } from "@/lib/dates";
 import { dbConnect } from "@/lib/mongodb";
+import type { Playlist } from "@/lib/youtube";
+import { getSettings } from "@/models/Settings";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,19 +31,19 @@ export const metadata: Metadata = {
   description: "Personal spaced-repetition tracker for product-interview DSA prep.",
 };
 
-/** Settings → Timezone (default IST); falls back to the default if MongoDB isn't reachable. */
-async function appTimezone() {
+/** Timezone (default IST) and music playlists from Settings; defaults if MongoDB isn't reachable. */
+async function appSettings(): Promise<{ tz: string; playlists: Playlist[] }> {
   await connection(); // per request, so a changed setting applies without a rebuild
   try {
     await dbConnect();
-    return getTimezone();
+    return { tz: getTimezone(), playlists: (await getSettings()).playlists };
   } catch {
-    return DEFAULT_TIMEZONE;
+    return { tz: DEFAULT_TIMEZONE, playlists: [] };
   }
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const tz = await appTimezone();
+  const { tz, playlists } = await appSettings();
   return (
     <html
       lang="en"
@@ -49,7 +52,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <TimezoneInit tz={tz} />
         <Nav />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-20 sm:px-6">{children}</main>
+        <MusicDock playlists={playlists} />
       </body>
     </html>
   );
