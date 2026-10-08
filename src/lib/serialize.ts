@@ -4,7 +4,7 @@ export type QuestionJSON = {
   platform: string;
   platformUrl: string;
   externalId: string;
-  videoUrl: string;
+  videoUrls: string[];
   notes: string;
   topics: string[];
   companies: string[];
@@ -25,6 +25,16 @@ export type QuestionJSON = {
   updatedAt: string;
 };
 
+/**
+ * Video links from `videoUrls` (array) plus the legacy single `videoUrl`, trimmed and de-duplicated.
+ * Works on stored documents and on request bodies alike.
+ */
+export function videoLinks(raw: Record<string, unknown>): string[] {
+  const list = Array.isArray(raw.videoUrls) ? raw.videoUrls : [];
+  const all = [...list, raw.videoUrl].map((v) => String(v ?? "").trim()).filter(Boolean);
+  return [...new Set(all)];
+}
+
 function iso(v: unknown): string | null {
   if (!v) return null;
   const d = v instanceof Date ? v : new Date(String(v));
@@ -38,7 +48,7 @@ export function serializeQuestion(doc: Record<string, unknown>): QuestionJSON {
     platform: String(doc.platform ?? "LeetCode"),
     platformUrl: String(doc.platformUrl ?? ""),
     externalId: String(doc.externalId ?? ""),
-    videoUrl: String(doc.videoUrl ?? ""),
+    videoUrls: videoLinks(doc),
     notes: String(doc.notes ?? ""),
     topics: Array.isArray(doc.topics) ? doc.topics.map(String) : [],
     companies: Array.isArray(doc.companies) ? doc.companies.map(String) : [],

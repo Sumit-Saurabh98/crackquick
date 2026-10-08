@@ -109,11 +109,11 @@ export default function QuestionDetailPage() {
               {item.platform} ↗
             </a>
           ) : null}
-          {item.videoUrl ? (
-            <a href={item.videoUrl} target="_blank" rel="noreferrer" className="btn">
-              Video ↗
+          {item.videoUrls.map((url, i, all) => (
+            <a key={url} href={url} target="_blank" rel="noreferrer" className="btn">
+              Video{all.length > 1 ? ` ${i + 1}` : ""} ↗
             </a>
-          ) : null}
+          ))}
           <button onClick={() => setLogging(true)} className="btn-primary">
             Log attempt
           </button>

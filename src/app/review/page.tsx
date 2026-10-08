@@ -137,11 +137,11 @@ function Session({ items, onRestart }: { items: QuestionJSON[]; onRestart: () =>
               Re-solve on {q.platform} ↗
             </a>
           ) : null}
-          {revealed && q.videoUrl ? (
-            <a href={q.videoUrl} target="_blank" rel="noreferrer" className="btn btn-sm">
-              Video ↗
+          {revealed && q.videoUrls.map((url, i, all) => (
+            <a key={url} href={url} target="_blank" rel="noreferrer" className="btn btn-sm">
+              Video{all.length > 1 ? ` ${i + 1}` : ""} ↗
             </a>
-          ) : null}
+          ))}
           <Link href={`/questions/${q._id}`} target="_blank" className="btn btn-sm">
             Details ↗
           </Link>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { csv, fail, notFoundUnlessValidId } from "@/lib/http";
 import { dbConnect } from "@/lib/mongodb";
 import { canonicalName } from "@/lib/options";
-import { serializeQuestion } from "@/lib/serialize";
+import { serializeQuestion, videoLinks } from "@/lib/serialize";
 import { ActivityEvent } from "@/models/Event";
 import { Question } from "@/models/Question";
 
@@ -13,7 +13,6 @@ const EDITABLE = [
   "platform",
   "platformUrl",
   "externalId",
-  "videoUrl",
   "notes",
   "difficulty",
   "pattern",
@@ -54,6 +53,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     }
     if (body.topics !== undefined) q.topics = csv(body.topics);
     if (body.companies !== undefined) q.companies = csv(body.companies);
+    if (body.videoUrls !== undefined || body.videoUrl !== undefined) {
+      q.videoUrls = videoLinks(body);
+      q.videoUrl = undefined;
+    }
 
     if (body.status !== undefined && body.status !== q.status) {
       if (body.status === "done") {

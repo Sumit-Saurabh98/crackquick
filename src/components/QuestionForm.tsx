@@ -18,7 +18,6 @@ const EMPTY = {
   platform: "",
   platformUrl: "",
   externalId: "",
-  videoUrl: "",
   notes: "",
   difficulty: "Medium" as QuestionJSON["difficulty"],
   status: "todo" as QuestionJSON["status"],
@@ -37,6 +36,7 @@ export function QuestionForm({
   const [form, setForm] = useState(() => ({ ...EMPTY, ...(initial ?? {}) }));
   const [topics, setTopics] = useState((initial?.topics ?? []).join(", "));
   const [companies, setCompanies] = useState((initial?.companies ?? []).join(", "));
+  const [videos, setVideos] = useState(() => (initial?.videoUrls.length ? initial.videoUrls : [""]));
   const [solvedBefore, setSolvedBefore] = useState(false);
   const [solvedOn, setSolvedOn] = useState("");
   const [solvedConf, setSolvedConf] = useState(3);
@@ -89,8 +89,8 @@ export function QuestionForm({
         title: !f.title || f.title === guessedTitle ? p.title : f.title,
         difficulty: p.difficulty,
         externalId: p.externalId,
-        videoUrl: f.videoUrl || p.videoUrl,
       }));
+      setVideos((v) => (v.some((u) => u.trim()) ? v : [p.videoUrl]));
       setTopics((t) => t || p.topics.join(", "));
       setCompanies((c) => c || p.companies.join(", "));
       setFetchState({
@@ -110,7 +110,7 @@ export function QuestionForm({
     }
     setSaving(true);
     setError("");
-    const payload: Record<string, unknown> = { ...form, topics, companies };
+    const payload: Record<string, unknown> = { ...form, topics, companies, videoUrls: videos };
     if (editing && initial?.status === form.status) delete payload.status;
     if (!editing && solvedBefore) {
       payload.backfill = { solvedAt: solvedOn, confidence: solvedConf };
@@ -201,16 +201,34 @@ export function QuestionForm({
       {!editing ? (
         <p className="-mt-2 text-xs text-muted">To mark it done, log an attempt (or tick “already solved” below).</p>
       ) : null}
-      <label className="grid gap-1 text-sm">
-        Video link
-        <input
-          value={form.videoUrl}
-          onChange={(e) => set("videoUrl", e.target.value)}
-          className="field"
-          placeholder="https://youtube.com/..."
-          inputMode="url"
-        />
-      </label>
+      <div className="grid gap-1 text-sm">
+        Video links
+        {videos.map((url, i) => (
+          <div key={i} className="flex gap-2">
+            <input
+              value={url}
+              onChange={(e) => setVideos((v) => v.map((u, j) => (j === i ? e.target.value : u)))}
+              className="field flex-1"
+              placeholder="https://youtube.com/..."
+              inputMode="url"
+              aria-label={`Video link ${i + 1}`}
+            />
+            {videos.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => setVideos((v) => v.filter((_, j) => j !== i))}
+                className="btn btn-sm"
+                aria-label={`Remove video link ${i + 1}`}
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+        ))}
+        <button type="button" onClick={() => setVideos((v) => [...v, ""])} className="btn btn-sm justify-self-start">
+          + Add another video
+        </button>
+      </div>
       <label className="grid gap-1 text-sm">
         Topics <span className="text-xs text-muted">comma separated{facets?.topics.length ? ` · existing: ${facets.topics.slice(0, 12).join(", ")}` : ""}</span>
         <input value={topics} onChange={(e) => setTopics(e.target.value)} className="field" placeholder="Arrays, Hashing" />

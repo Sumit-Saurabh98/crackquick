@@ -4,6 +4,7 @@ import { csv, fail } from "@/lib/http";
 import { dbConnect } from "@/lib/mongodb";
 import { canonicalNames } from "@/lib/options";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
+import { videoLinks } from "@/lib/serialize";
 import { Question } from "@/models/Question";
 
 type Incoming = Record<string, unknown>;
@@ -19,7 +20,7 @@ function normalize(raw: Incoming, pattern: string) {
     platform: String(raw.platform ?? "LeetCode"),
     platformUrl: raw.platformUrl ? canonicalProblemUrl(String(raw.platformUrl)) : "",
     externalId: String(raw.externalId ?? ""),
-    videoUrl: String(raw.videoUrl ?? ""),
+    videoUrls: videoLinks(raw),
     notes: String(raw.notes ?? ""),
     topics: csv(raw.topics),
     companies: csv(raw.companies),

@@ -5,7 +5,7 @@ import { canonicalName } from "@/lib/options";
 import { dbConnect } from "@/lib/mongodb";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
 import { listQuestions } from "@/lib/queries";
-import { serializeQuestion } from "@/lib/serialize";
+import { serializeQuestion, videoLinks } from "@/lib/serialize";
 import { Question } from "@/models/Question";
 
 export async function GET(req: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       platform: await canonicalName("platform", body.platform),
       platformUrl: body.platformUrl ? canonicalProblemUrl(String(body.platformUrl)) : "",
       externalId: body.externalId ? String(body.externalId) : "",
-      videoUrl: body.videoUrl,
+      videoUrls: videoLinks(body),
       notes: body.notes,
       topics: csv(body.topics),
       companies: csv(body.companies),

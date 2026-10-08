@@ -19,7 +19,7 @@ Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose.
 | platform | Chosen from your **Platforms** list (§1.4) |
 | platformUrl | Link to the problem; stored in canonical form and used to detect duplicates |
 | externalId | LeetCode problem number / GFG problem id; searchable (“146”) and shown as “LeetCode #146” |
-| videoUrl | Explanation video |
+| videoUrls[] | Explanation videos (any number of links) |
 | notes | Markdown: approach, pitfalls, complexity, code |
 | topics[] | From the platform's tags on import, or typed by you |
 | companies[] | Companies that ask it (§3.3) |

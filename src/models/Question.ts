@@ -10,7 +10,9 @@ const QuestionSchema = new Schema(
     platform: { type: String, default: "LeetCode" },
     platformUrl: { type: String, default: "" },
     externalId: { type: String, default: "" },
-    videoUrl: { type: String, default: "" },
+    videoUrls: { type: [String], default: [] },
+    // Legacy single link; read into videoUrls and cleared when the question is next edited.
+    videoUrl: { type: String },
     notes: { type: String, default: "" },
     topics: { type: [String], default: [] },
     companies: { type: [String], default: [] },
