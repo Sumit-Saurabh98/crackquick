@@ -24,8 +24,10 @@ export default function QuestionDetailPage() {
   const router = useRouter();
   const canEdit = useCan("catalog.edit");
   const canDelete = useCan("catalog.delete");
+  // Admins manage the catalog only: no log, schedule, notes, history, star or hide.
+  const practises = useCan("practice.track");
   const question = useApi<{ item: QuestionJSON }>(`/api/questions/${id}`);
-  const history = useApi<{ items: AttemptJSON[] }>(`/api/questions/${id}/attempts`);
+  const history = useApi<{ items: AttemptJSON[] }>(practises ? `/api/questions/${id}/attempts` : null);
   const [editing, setEditing] = useState<"" | "edit" | "suggest-edit">("");
   const [logging, setLogging] = useState(false);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
@@ -75,16 +77,20 @@ export default function QuestionDetailPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <Link href="/questions" className="text-xs text-muted hover:text-ink">
-            ← Library
+            ← {practises ? "Library" : "Catalog"}
           </Link>
           <h1 className="display text-3xl">
-            {item.isStarred ? <span className="text-brass">★ </span> : null}
+            {practises && item.isStarred ? <span className="text-brass">★ </span> : null}
             {item.title}
           </h1>
           <div className="mt-2 flex flex-wrap gap-2">
             <DifficultyPill value={item.difficulty} />
-            <StatusPill value={item.status} />
-            <RevisionPill q={item} />
+            {practises ? (
+              <>
+                <StatusPill value={item.status} />
+                <RevisionPill q={item} />
+              </>
+            ) : null}
             {item.retired ? <span className="pill bg-warn/10 text-warn">retired</span> : null}
             {item.archived ? <span className="pill bg-white/5 text-muted">hidden</span> : null}
             {item.pattern ? (
@@ -118,131 +124,141 @@ export default function QuestionDetailPage() {
               Video{all.length > 1 ? ` ${i + 1}` : ""} ↗
             </a>
           ))}
-          <button onClick={() => setLogging(true)} className="btn-primary">
-            Log attempt
-          </button>
-        </div>
-      </div>
-
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          ["Last solved", formatDate(item.lastSolvedAt, true)],
-          ["Next revision", item.nextRevisionAt ? formatDate(item.nextRevisionAt) : "not scheduled"],
-          ["Times solved", `${item.timesSolved}×${item.lapses ? ` · blanked ${item.lapses}×` : ""}`],
-          ["Time spent", item.totalMinutes ? `${item.totalMinutes} min total` : "—"],
-        ].map(([k, v]) => (
-          <div key={k} className="card p-4">
-            <p className="eyebrow">{k}</p>
-            <p className="mt-1 text-sm">{v}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="card p-5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="display text-xl">Notes</h2>
-          {notesDraft === null ? (
-            <button onClick={() => setNotesDraft(item.notes)} className="btn btn-sm">
-              Edit notes
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={() => setNotesDraft(null)} className="btn btn-sm">
-                Cancel
-              </button>
-              <button
-                disabled={busy}
-                onClick={() =>
-                  act(async () => {
-                    await send(`/api/questions/${id}`, "PATCH", { notes: notesDraft });
-                    setNotesDraft(null);
-                  }, "Notes saved")
-                }
-                className="btn-primary btn-sm"
-              >
-                Save
-              </button>
-            </div>
-          )}
-        </div>
-        {notesDraft !== null ? (
-          <textarea
-            autoFocus
-            rows={14}
-            value={notesDraft}
-            onChange={(e) => setNotesDraft(e.target.value)}
-            className="field mt-3 w-full font-mono text-[13px]"
-            placeholder={"## Approach\n\n## Pitfalls\n\n## Complexity\nO(n) time, O(1) space\n\n```python\n```"}
-          />
-        ) : item.notes ? (
-          <div className="mt-3">
-            <Markdown>{item.notes}</Markdown>
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-muted">No notes yet. Write the approach, the trick, pitfalls and complexity.</p>
-        )}
-      </section>
-
-      <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="display text-xl">History</h2>
-          {attempts.length ? (
-            <button
-              disabled={busy}
-              onClick={() =>
-                act(async () => {
-                  await send(`/api/questions/${id}/attempts/last`, "DELETE");
-                  setToast("Undid last log");
-                })
-              }
-              className="btn btn-sm"
-            >
-              Undo last log
+          {practises ? (
+            <button onClick={() => setLogging(true)} className="btn-primary">
+              Log attempt
             </button>
           ) : null}
         </div>
-        {attempts.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">No attempts yet.</p>
-        ) : (
-          <ol className="mt-3 grid gap-2">
-            {attempts.map((a) => (
-              <li key={a._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-line pl-3 text-sm">
-                <span className={a.type === "failed_recall" ? "text-warn" : a.type === "solved" ? "text-good" : "text-ink"}>
-                  {KIND_LABEL[a.type]}
-                </span>
-                <span className="text-muted">{formatDate(a.at, !a.backfill)}</span>
-                {a.type !== "failed_recall" ? <span className="text-muted">conf {a.confidence}/5</span> : null}
-                {a.minutes ? <span className="text-muted">{a.minutes} min</span> : null}
-                {a.backfill ? <span className="pill bg-white/5 text-muted">backfill</span> : null}
-                {!a.onTime && !a.backfill ? <span className="pill bg-warn/10 text-warn">late</span> : null}
-              </li>
+      </div>
+
+      {practises ? (
+        <>
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ["Last solved", formatDate(item.lastSolvedAt, true)],
+              ["Next revision", item.nextRevisionAt ? formatDate(item.nextRevisionAt) : "not scheduled"],
+              ["Times solved", `${item.timesSolved}×${item.lapses ? ` · blanked ${item.lapses}×` : ""}`],
+              ["Time spent", item.totalMinutes ? `${item.totalMinutes} min total` : "—"],
+            ].map(([k, v]) => (
+              <div key={k} className="card p-4">
+                <p className="eyebrow">{k}</p>
+                <p className="mt-1 text-sm">{v}</p>
+              </div>
             ))}
-          </ol>
-        )}
-      </section>
+          </section>
+
+          <section className="card p-5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="display text-xl">Notes</h2>
+              {notesDraft === null ? (
+                <button onClick={() => setNotesDraft(item.notes)} className="btn btn-sm">
+                  Edit notes
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={() => setNotesDraft(null)} className="btn btn-sm">
+                    Cancel
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      act(async () => {
+                        await send(`/api/questions/${id}`, "PATCH", { notes: notesDraft });
+                        setNotesDraft(null);
+                      }, "Notes saved")
+                    }
+                    className="btn-primary btn-sm"
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+            {notesDraft !== null ? (
+              <textarea
+                autoFocus
+                rows={14}
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                className="field mt-3 w-full font-mono text-[13px]"
+                placeholder={"## Approach\n\n## Pitfalls\n\n## Complexity\nO(n) time, O(1) space\n\n```python\n```"}
+              />
+            ) : item.notes ? (
+              <div className="mt-3">
+                <Markdown>{item.notes}</Markdown>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-muted">No notes yet. Write the approach, the trick, pitfalls and complexity.</p>
+            )}
+          </section>
+
+          <section className="card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="display text-xl">History</h2>
+              {attempts.length ? (
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    act(async () => {
+                      await send(`/api/questions/${id}/attempts/last`, "DELETE");
+                      setToast("Undid last log");
+                    })
+                  }
+                  className="btn btn-sm"
+                >
+                  Undo last log
+                </button>
+              ) : null}
+            </div>
+            {attempts.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">No attempts yet.</p>
+            ) : (
+              <ol className="mt-3 grid gap-2">
+                {attempts.map((a) => (
+                  <li key={a._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-line pl-3 text-sm">
+                    <span className={a.type === "failed_recall" ? "text-warn" : a.type === "solved" ? "text-good" : "text-ink"}>
+                      {KIND_LABEL[a.type]}
+                    </span>
+                    <span className="text-muted">{formatDate(a.at, !a.backfill)}</span>
+                    {a.type !== "failed_recall" ? <span className="text-muted">conf {a.confidence}/5</span> : null}
+                    {a.minutes ? <span className="text-muted">{a.minutes} min</span> : null}
+                    {a.backfill ? <span className="pill bg-white/5 text-muted">backfill</span> : null}
+                    {!a.onTime && !a.backfill ? <span className="pill bg-warn/10 text-warn">late</span> : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </>
+      ) : null}
 
       <section className="flex flex-wrap gap-2">
-        <button
-          disabled={busy}
-          onClick={() => act(() => send(`/api/questions/${id}`, "PATCH", { isStarred: !item.isStarred }))}
-          className="btn"
-        >
-          {item.isStarred ? "Unstar" : "Star"}
-        </button>
-        <StatusControl status={item.status} busy={busy} onChange={(status) => act(() => send(`/api/questions/${id}`, "PATCH", { status }))} />
-        <button
-          disabled={busy}
-          onClick={() =>
-            act(
-              () => send(`/api/questions/${id}`, "PATCH", { archived: !item.archived }),
-              item.archived ? "Back in your lists" : "Hidden from your lists and queue",
-            )
-          }
-          className="btn"
-          title="Only for you; your history is kept"
-        >
-          {item.archived ? "Unhide" : "Hide for me"}
-        </button>
+        {practises ? (
+          <>
+            <button
+              disabled={busy}
+              onClick={() => act(() => send(`/api/questions/${id}`, "PATCH", { isStarred: !item.isStarred }))}
+              className="btn"
+            >
+              {item.isStarred ? "Unstar" : "Star"}
+            </button>
+            <StatusControl status={item.status} busy={busy} onChange={(status) => act(() => send(`/api/questions/${id}`, "PATCH", { status }))} />
+            <button
+              disabled={busy}
+              onClick={() =>
+                act(
+                  () => send(`/api/questions/${id}`, "PATCH", { archived: !item.archived }),
+                  item.archived ? "Back in your lists" : "Hidden from your lists and queue",
+                )
+              }
+              className="btn"
+              title="Only for you; your history is kept"
+            >
+              {item.archived ? "Unhide" : "Hide for me"}
+            </button>
+          </>
+        ) : null}
         {canEdit ? (
           <>
             <button onClick={() => setEditing((v) => (v ? "" : "edit"))} className="btn sm:ml-auto">

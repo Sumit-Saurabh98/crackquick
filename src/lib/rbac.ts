@@ -3,11 +3,14 @@
  * database, changed on the Users page); what each role may do is defined here, in one place, and
  * checked on the server by `route({ permission })` / `requirePermission`, and in the UI by `useCan`.
  *
- * Every signed-in user can always work on their own data (progress, notes, attempts, settings,
- * playlists) and suggest catalog changes; those need no permission.
+ * Every signed-in user can see the catalog, set their timezone and suggest catalog changes; those need
+ * no permission. Practising (progress, review, notes, music…) is a permission so admins can be
+ * management-only.
  */
 
 export const PERMISSIONS = {
+  "practice.track":
+    "Practise: Desk, Review, Progress; log attempts, star, notes, hide; interview date, revision ladder, music",
   "catalog.edit": "Add, import, look up, edit and retire catalog questions; fill company tags",
   "catalog.delete": "Delete catalog questions",
   "lists.manage": "Add, rename and delete platforms and patterns",
@@ -24,17 +27,17 @@ export const ROLE_INFO: Record<Role, { label: string; description: string; permi
   user: {
     label: "User",
     description: "Tracks their own progress; suggests new questions and edits.",
-    permissions: [],
+    permissions: ["practice.track"],
   },
   editor: {
     label: "Editor",
-    description: "Curates the catalog and reviews suggestions. Can't delete questions or manage users.",
-    permissions: ["catalog.edit", "lists.manage", "submissions.review"],
+    description: "Practises like a user, and also curates the catalog and reviews suggestions. Can't delete questions or manage users.",
+    permissions: ["practice.track", "catalog.edit", "lists.manage", "submissions.review"],
   },
   admin: {
     label: "Admin",
-    description: "Everything, including deleting questions and changing roles.",
-    permissions: Object.keys(PERMISSIONS) as Permission[],
+    description: "Runs the app: catalog, lists, reviews, deleting questions and roles. No personal practice.",
+    permissions: ["catalog.edit", "catalog.delete", "lists.manage", "submissions.review", "users.manage"],
   },
 };
 

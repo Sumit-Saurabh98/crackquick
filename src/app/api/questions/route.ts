@@ -3,7 +3,7 @@ import { HttpError, logAttempt, parseAttemptInput } from "@/lib/attempts";
 import { catalogInput, findByProblemUrl, withCanonicalNames } from "@/lib/catalog";
 import { listQuestions } from "@/lib/queries";
 import { serializeQuestion } from "@/lib/serialize";
-import { route } from "@/lib/viewer";
+import { can, route } from "@/lib/viewer";
 import { progressFor } from "@/models/Progress";
 import { Question } from "@/models/Question";
 
@@ -18,7 +18,9 @@ export const GET = route(async (req, { viewer }) =>
 export const POST = route(
   async (req, { viewer }) => {
     const body = await req.json();
-    const backfill = body.backfill ? parseAttemptInput({ ...body.backfill, outcome: "recalled" }) : null;
+    // Personal extras only for someone who practises (admins are management-only).
+    const practises = can(viewer, "practice.track");
+    const backfill = practises && body.backfill ? parseAttemptInput({ ...body.backfill, outcome: "recalled" }) : null;
     if (backfill && !backfill.solvedAt) throw new HttpError("backfill.solvedAt is required", 400);
 
     const fields = await withCanonicalNames(catalogInput(body));
@@ -28,7 +30,7 @@ export const POST = route(
     }
     const created = await Question.create({ ...fields, createdBy: viewer.id });
 
-    if (body.isStarred || body.status === "in_progress") {
+    if (practises && (body.isStarred || body.status === "in_progress")) {
       const p = await progressFor(viewer.id, created._id);
       p.isStarred = Boolean(body.isStarred);
       if (body.status === "in_progress") p.status = "in_progress";

@@ -3,7 +3,7 @@ import { HttpError } from "@/lib/attempts";
 import { isValidTimezone, parseYmdKey, zonedMidnight } from "@/lib/dates";
 import { runWithTimezone } from "@/lib/requestContext";
 import { normalizeIntervals } from "@/lib/revision";
-import { route } from "@/lib/viewer";
+import { requirePermission, route } from "@/lib/viewer";
 import { getSettings, Settings, type SettingsDoc } from "@/models/Settings";
 
 function shape(s: SettingsDoc) {
@@ -23,6 +23,8 @@ export const GET = route(async (_req, { viewer }) => NextResponse.json(shape(vie
 export const PUT = route(
   async (req, { viewer }) => {
     const body = await req.json();
+    // Timezone is for everyone (it decides how dates show); the rest is practice.
+    if (body.interviewDate !== undefined || body.intervals !== undefined) requirePermission(viewer, "practice.track");
     const update: Record<string, unknown> = {};
     let timezone = viewer.settings.timezone;
     if (body.timezone !== undefined) {

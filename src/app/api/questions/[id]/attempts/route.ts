@@ -12,7 +12,7 @@ export const GET = route<P>(async (_req, { viewer, params }) => {
   const questionId = checkId(params.id, "Question not found");
   const docs = await ActivityEvent.find({ userId: viewer.id, questionId }).sort({ at: -1, _id: -1 }).lean();
   return NextResponse.json({ items: docs.map((d) => serializeAttempt(d as Record<string, unknown>)) });
-});
+}, { permission: "practice.track" });
 
 /** Body: { outcome: "recalled" | "blanked", confidence 1-5, minutes?, solvedAt? } */
 export const POST = route<P>(
@@ -21,5 +21,5 @@ export const POST = route<P>(
     const input = parseAttemptInput(await req.json());
     return NextResponse.json(await logAttempt(viewer.id, viewer.settings.intervals, params.id, input));
   },
-  { errorStatus: 400 },
+  { permission: "practice.track", errorStatus: 400 },
 );

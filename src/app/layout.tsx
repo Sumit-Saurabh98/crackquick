@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <TimezoneInit tz={tz} />
           <Nav />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-20 sm:px-6">{children}</main>
-          {viewer ? <MusicDock playlists={playlists} /> : null}
+          {viewer?.permissions.includes("practice.track") ? <MusicDock playlists={playlists} /> : null}
         </ViewerProvider>
       </body>
     </html>

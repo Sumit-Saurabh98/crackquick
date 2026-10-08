@@ -31,6 +31,7 @@ function QuestionsView() {
   const { data, error, reload } = useApi<Page>(`/api/questions?${query}`);
   const facets = useApi<Facets>("/api/meta").data;
   const canEdit = useCan("catalog.edit");
+  const practises = useCan("practice.track");
   const [text, setText] = useState(params.get("q") ?? "");
   const [toast, setToast] = useState("");
   const clearToast = useCallback(() => setToast(""), []);
@@ -79,7 +80,7 @@ function QuestionsView() {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow">Library</p>
+          <p className="eyebrow">{practises ? "Library" : "Catalog"}</p>
           <h1 className="display text-3xl">Questions</h1>
           <p className="text-sm text-muted">{data ? `${data.total} matching` : <Spinner size="sm" />}</p>
         </div>
@@ -91,44 +92,55 @@ function QuestionsView() {
       <div className="card grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
         <input
           type="search"
-          placeholder="Search title, notes, topics"
+          placeholder={practises ? "Search title, notes, topics" : "Search title, topics, companies, number"}
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="field sm:col-span-2"
           aria-label="Search"
         />
-        {select("revision", "Any schedule", [
-          ["queue", "Review queue (due + overdue)"],
-          ["overdue", "Overdue"],
-          ["due", "Due today"],
-          ["upcoming", "Upcoming"],
-          ["none", "Unscheduled"],
-        ])}
-        {select("sort", "Sort: next revision", [
-          ["updated", "Sort: recently updated"],
-          ["last", "Sort: rustiest first"],
-          ["difficulty", "Sort: difficulty"],
-          ["title", "Sort: title"],
-          ["times", "Sort: times solved"],
-        ])}
+        {practises
+          ? select("revision", "Any schedule", [
+              ["queue", "Review queue (due + overdue)"],
+              ["overdue", "Overdue"],
+              ["due", "Due today"],
+              ["upcoming", "Upcoming"],
+              ["none", "Unscheduled"],
+            ])
+          : null}
+        {practises
+          ? select("sort", "Sort: next revision", [
+              ["updated", "Sort: recently updated"],
+              ["last", "Sort: rustiest first"],
+              ["difficulty", "Sort: difficulty"],
+              ["title", "Sort: title"],
+              ["times", "Sort: times solved"],
+            ])
+          : select("sort", "Sort: recently updated", [
+              ["difficulty", "Sort: difficulty"],
+              ["title", "Sort: title"],
+            ])}
         {select("difficulty", "Any difficulty", [...DIFFICULTIES])}
-        {select("status", "Any status", [
-          ["todo", "Todo"],
-          ["in_progress", "In progress"],
-          ["done", "Done"],
-        ])}
-        {select("lastDone", "Last done: any", [
-          ["never", "Never solved"],
-          ["today", "Solved today"],
-          ["7d", "Last 7 days"],
-          ["30d", "Last 30 days"],
-          ["90plus", "90+ days ago"],
-        ])}
-        {select("maxConfidence", "Any confidence", [
-          ["2", "Confidence ≤ 2"],
-          ["3", "Confidence ≤ 3"],
-          ["4", "Confidence ≤ 4"],
-        ])}
+        {practises ? (
+          <>
+            {select("status", "Any status", [
+              ["todo", "Todo"],
+              ["in_progress", "In progress"],
+              ["done", "Done"],
+            ])}
+            {select("lastDone", "Last done: any", [
+              ["never", "Never solved"],
+              ["today", "Solved today"],
+              ["7d", "Last 7 days"],
+              ["30d", "Last 30 days"],
+              ["90plus", "90+ days ago"],
+            ])}
+            {select("maxConfidence", "Any confidence", [
+              ["2", "Confidence ≤ 2"],
+              ["3", "Confidence ≤ 3"],
+              ["4", "Confidence ≤ 4"],
+            ])}
+          </>
+        ) : null}
         {select("topic", "Any topic", facets?.topics ?? [])}
         {select("pattern", "Any pattern", facets?.patterns ?? [])}
         {select("company", "Any company", facets?.companies ?? [])}
@@ -136,8 +148,12 @@ function QuestionsView() {
         <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2 lg:col-span-3">
           {(
             [
-              ["starred", "★ Starred"],
-              ["archived", "Hidden by me"],
+              ...(practises
+                ? ([
+                    ["starred", "★ Starred"],
+                    ["archived", "Hidden by me"],
+                  ] as const)
+                : []),
               ...(canEdit ? ([["retired", "Retired"]] as const) : []),
             ] as const
           ).map(([k, label]) => (

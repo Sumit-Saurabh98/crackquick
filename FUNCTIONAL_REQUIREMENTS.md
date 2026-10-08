@@ -19,13 +19,15 @@ Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose; sign-in w
 
   | Permission | What it allows | user | editor | admin |
   | --- | --- | :-: | :-: | :-: |
+  | `practice.track` | Practise: Desk, Review, Progress; log / undo attempts, star, notes, hide, reset status; interview date and revision ladder; music player and playlists; personal export | ✓ | ✓ | |
   | `catalog.edit` | Add (LeetCode/GFG lookup of up to 100 at once, manual, JSON import), edit and retire questions; fill company tags | | ✓ | ✓ |
   | `catalog.delete` | Delete questions | | | ✓ |
   | `lists.manage` | Add / rename / delete Platforms and Patterns | | ✓ | ✓ |
   | `submissions.review` | See everyone's suggestions; approve / reject | | ✓ | ✓ |
   | `users.manage` | **Users** page: see all accounts, change roles | | | ✓ |
 
-- **Every user** (no permission needed) works on their own data only: log attempts, undo, review, reset status, star, notes, hide a question for themselves, settings, playlists, export; and can **suggest** new questions and edits (§2a).
+- **Without any permission** a signed-in account can browse the catalog, set its timezone and **suggest** new questions and edits (§2a). Practising needs `practice.track`, which users and editors have.
+- **Admins are management-only**: no Desk, Review or Progress (those pages send them to the catalog), no log / star / notes / hide, no interview date or revision ladder, no music. Their Questions list is the catalog (no personal filters; sorted by recently updated), and a question page shows its details with Edit / Retire / Delete. The server refuses practice requests from them (403), not just the UI.
 - **Users page** (admins): every account with its sign-in methods and join date, and a role picker. The last admin can't be demoted. The first admin is made from the command line: `npm run set-role -- <email> admin` (the account must exist).
 - New users see the whole catalog straight away, every question starting as todo.
 

@@ -122,7 +122,8 @@ const SORTS: Record<string, Record<string, 1 | -1>> = {
 
 export async function listQuestions(search: URLSearchParams, viewer: Viewer) {
   const filter = buildQuestionFilter(search, viewer);
-  const sort = SORTS[search.get("sort") || "next"] ?? SORTS.next;
+  const fallback = can(viewer, "practice.track") ? "next" : "updated";
+  const sort = SORTS[search.get("sort") || fallback] ?? SORTS[fallback];
   const limit = Math.min(200, Math.max(1, Number(search.get("limit")) || PAGE_SIZE));
   const page = Math.max(1, Number(search.get("page")) || 1);
 

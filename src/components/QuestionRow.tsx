@@ -6,6 +6,7 @@ import { AttemptDialog } from "@/components/AttemptDialog";
 import { CompanyTags } from "@/components/CompanyTags";
 import type { AttemptResult } from "@/components/GradePanel";
 import { DifficultyPill, RevisionPill, StatusPill } from "@/components/Pills";
+import { useCan } from "@/components/ViewerProvider";
 import { send } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
 import type { QuestionJSON } from "@/lib/serialize";
@@ -19,6 +20,7 @@ export function QuestionRow({
   onChanged: () => void;
   onLogged?: (r: AttemptResult) => void;
 }) {
+  const practises = useCan("practice.track");
   const [logging, setLogging] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -34,9 +36,11 @@ export function QuestionRow({
 
   const meta = [
     q.externalId ? `${q.platform} #${q.externalId}` : q.platform,
+    q.pattern,
     q.topics.join(", "),
-    q.lastSolvedAt ? `last ${formatDate(q.lastSolvedAt)}` : "never solved",
-    q.timesSolved ? `${q.timesSolved}× · conf ${q.confidence}/5` : "",
+    ...(practises
+      ? [q.lastSolvedAt ? `last ${formatDate(q.lastSolvedAt)}` : "never solved", q.timesSolved ? `${q.timesSolved}× · conf ${q.confidence}/5` : ""]
+      : []),
   ].filter(Boolean);
 
   return (
@@ -48,8 +52,13 @@ export function QuestionRow({
             {q.title}
           </Link>
           <DifficultyPill value={q.difficulty} />
-          <StatusPill value={q.status} />
-          <RevisionPill q={q} />
+          {practises ? (
+            <>
+              <StatusPill value={q.status} />
+              <RevisionPill q={q} />
+            </>
+          ) : null}
+          {q.retired ? <span className="pill bg-warn/10 text-warn">retired</span> : null}
         </div>
         <p className="mt-1 truncate text-xs text-muted">{meta.join(" · ")}</p>
         {q.companies.length ? (
@@ -64,12 +73,20 @@ export function QuestionRow({
             Open
           </a>
         ) : null}
-        <button onClick={toggleStar} disabled={busy} className="btn btn-sm" aria-label={q.isStarred ? "Unstar" : "Star"}>
-          {q.isStarred ? "★" : "☆"}
-        </button>
-        <button onClick={() => setLogging(true)} className="btn-primary btn-sm">
-          Log
-        </button>
+        {practises ? (
+          <>
+            <button onClick={toggleStar} disabled={busy} className="btn btn-sm" aria-label={q.isStarred ? "Unstar" : "Star"}>
+              {q.isStarred ? "★" : "☆"}
+            </button>
+            <button onClick={() => setLogging(true)} className="btn-primary btn-sm">
+              Log
+            </button>
+          </>
+        ) : (
+          <Link href={`/questions/${q._id}`} className="btn btn-sm">
+            Manage
+          </Link>
+        )}
       </div>
       {logging ? (
         <AttemptDialog

@@ -8,5 +8,5 @@ export const POST = route<{ id: string }>(
     const { dir } = await req.json();
     return NextResponse.json({ items: await movePlaylist(viewer.id, params.id, dir === -1 ? -1 : 1) });
   },
-  { errorStatus: 400 },
+  { permission: "practice.track", errorStatus: 400 },
 );

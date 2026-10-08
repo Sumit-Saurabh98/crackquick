@@ -18,19 +18,22 @@ export default function SettingsPage() {
   const { data, error } = useApi<SettingsJSON>("/api/settings");
   const canManageLists = useCan("lists.manage");
   const canEditCatalog = useCan("catalog.edit");
+  const practises = useCan("practice.track");
   if (error && !data) return <ErrorPanel error={error} />;
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-6">
       <h1 className="display text-3xl">Settings</h1>
-      {data ? <SettingsForm initial={data} /> : <Spinner className="min-h-[30vh]" />}
-      <section className="card grid gap-4 p-5">
-        <h2 className="display text-xl">Your data</h2>
-        <Row title="Export backup" hint="Your progress, notes, attempts and settings, with the catalog, as one JSON file.">
-          <a href="/api/export" download className="btn">
-            Download
-          </a>
-        </Row>
-      </section>
+      {data ? <SettingsForm initial={data} practises={practises} /> : <Spinner className="min-h-[30vh]" />}
+      {practises ? (
+        <section className="card grid gap-4 p-5">
+          <h2 className="display text-xl">Your data</h2>
+          <Row title="Export backup" hint="Your progress, notes, attempts and settings, with the catalog, as one JSON file.">
+            <a href="/api/export" download className="btn">
+              Download
+            </a>
+          </Row>
+        </section>
+      ) : null}
       {canManageLists || canEditCatalog ? <p className="eyebrow -mb-3">Catalog · shared by everyone</p> : null}
       {canManageLists ? (
         <>
@@ -44,10 +47,8 @@ export default function SettingsPage() {
           </section>
         </>
       ) : null}
-      {canEditCatalog ? (
-        <CatalogTools />
-      ) : null}
-      {data ? (
+      {canEditCatalog ? <CatalogTools /> : null}
+      {data && practises ? (
         <section className="card grid gap-4 p-5">
           <div>
             <h2 className="display text-xl">Music playlists</h2>
@@ -60,7 +61,8 @@ export default function SettingsPage() {
   );
 }
 
-function SettingsForm({ initial }: { initial: SettingsJSON }) {
+/** Timezone for everyone; interview date and revision ladder only for people who practise. */
+function SettingsForm({ initial, practises }: { initial: SettingsJSON; practises: boolean }) {
   const router = useRouter();
   const [timezone, setTz] = useState(initial.timezone);
   const [date, setDate] = useState(initial.interviewDate ? dateKey(new Date(initial.interviewDate)) : "");
@@ -73,11 +75,11 @@ function SettingsForm({ initial }: { initial: SettingsJSON }) {
     setSaving(true);
     setStatus("");
     try {
-      const saved = await send<SettingsJSON>("/api/settings", "PUT", {
-        interviewDate: date || null,
-        intervals,
-        timezone,
-      });
+      const saved = await send<SettingsJSON>(
+        "/api/settings",
+        "PUT",
+        practises ? { interviewDate: date || null, intervals, timezone } : { timezone },
+      );
       setIntervals(saved.intervals.join(", "));
       setTimezone(saved.timezone);
       router.refresh();
@@ -91,27 +93,31 @@ function SettingsForm({ initial }: { initial: SettingsJSON }) {
 
   return (
     <form onSubmit={save} className="card grid gap-5 p-5">
-      <label className="grid gap-1 text-sm">
-        Interview date
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field sm:max-w-xs" />
-        <span className="text-xs text-muted">
-          With a date set, the Desk shows days left and how many questions a day you need to finish everything not done.
-        </span>
-      </label>
+      {practises ? (
+        <>
+          <label className="grid gap-1 text-sm">
+            Interview date
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field sm:max-w-xs" />
+            <span className="text-xs text-muted">
+              With a date set, the Desk shows days left and how many questions a day you need to finish everything not done.
+            </span>
+          </label>
 
-      <label className="grid gap-1 text-sm">
-        Revision intervals (days)
-        <input
-          value={intervals}
-          onChange={(e) => setIntervals(e.target.value)}
-          className="field font-mono"
-          placeholder={DEFAULT_REVISION_INTERVALS.join(", ")}
-        />
-        <span className="text-xs text-muted">
-          Each good recall moves a question one step along this list; a weak one moves it back, a blank restarts it.
-          Default: {DEFAULT_REVISION_INTERVALS.join(", ")}. Applies to future reviews.
-        </span>
-      </label>
+          <label className="grid gap-1 text-sm">
+            Revision intervals (days)
+            <input
+              value={intervals}
+              onChange={(e) => setIntervals(e.target.value)}
+              className="field font-mono"
+              placeholder={DEFAULT_REVISION_INTERVALS.join(", ")}
+            />
+            <span className="text-xs text-muted">
+              Each good recall moves a question one step along this list; a weak one moves it back, a blank restarts it.
+              Default: {DEFAULT_REVISION_INTERVALS.join(", ")}. Applies to future reviews.
+            </span>
+          </label>
+        </>
+      ) : null}
 
       <label className="grid gap-1 text-sm">
         Timezone
@@ -181,6 +187,11 @@ function CatalogTools() {
             Choose file
             <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
           </label>
+        </Row>
+        <Row title="Export catalog" hint="Every catalog question as JSON; the file can be imported again above.">
+          <a href="/api/export" download className="btn">
+            Download
+          </a>
         </Row>
         <Row
           title="Fill missing company tags"

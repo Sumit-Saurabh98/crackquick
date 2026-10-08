@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PracticeOnly } from "@/components/PracticeOnly";
 import { useEffect, useEffectEvent, useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { GradePanel, type AttemptResult } from "@/components/GradePanel";
@@ -21,6 +22,14 @@ const MODES = [
 type Result = { q: QuestionJSON; r: AttemptResult | null };
 
 export default function ReviewPage() {
+  return (
+    <PracticeOnly>
+      <Review />
+    </PracticeOnly>
+  );
+}
+
+function Review() {
   const [mode, setMode] = useState<(typeof MODES)[number]["id"]>("due");
   const [run, setRun] = useState(0);
   const query = MODES.find((m) => m.id === mode)!.query;

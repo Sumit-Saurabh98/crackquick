@@ -96,7 +96,7 @@ function Users() {
       <section className="card grid gap-3 p-5">
         <h2 className="display text-xl">Roles</h2>
         <p className="text-xs text-muted">
-          Everyone can track their own progress, notes and settings, and suggest new questions or edits.
+          Everyone can browse the catalog, set their timezone and suggest new questions or edits.
         </p>
         {ROLES.map((r) => (
           <div key={r} className="grid gap-1 border-t border-line pt-3 text-sm">

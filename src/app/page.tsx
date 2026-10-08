@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PracticeOnly } from "@/components/PracticeOnly";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { Heatmap } from "@/components/Heatmap";
 import { DifficultyPill, RevisionPill } from "@/components/Pills";
@@ -11,6 +12,14 @@ import type { Stats } from "@/lib/stats";
 import { useApi } from "@/lib/useApi";
 
 export default function DeskPage() {
+  return (
+    <PracticeOnly>
+      <Desk />
+    </PracticeOnly>
+  );
+}
+
+function Desk() {
   const { data: stats, error } = useApi<Stats>("/api/stats?period=day");
   const canEdit = useCan("catalog.edit");
 

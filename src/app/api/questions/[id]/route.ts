@@ -24,7 +24,7 @@ export const GET = route<P>(async (_req, { viewer, params }) => {
 });
 
 /**
- * Anyone, on their own progress: notes, isStarred, archived (hide for me), status (reset to todo /
+ * Needs practice.track, on their own progress: notes, isStarred, archived (hide for me), status (reset to todo /
  * in_progress; done only comes from logging an attempt, and resetting clears the schedule).
  * Needs catalog.edit: catalog fields (title, link, videos, topics, companies, difficulty, pattern, …) and `retired`.
  */
@@ -47,6 +47,7 @@ export const PATCH = route<P>(
     }
 
     const personal = ["notes", "isStarred", "archived", "status"].some((k) => body[k] !== undefined);
+    if (personal) requirePermission(viewer, "practice.track");
     let p = personal ? await progressFor(viewer.id, q._id) : null;
     if (p) {
       if (body.notes !== undefined) p.notes = String(body.notes);

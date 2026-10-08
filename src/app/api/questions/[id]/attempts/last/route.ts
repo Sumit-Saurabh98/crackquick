@@ -9,5 +9,5 @@ export const DELETE = route<{ id: string }>(
     checkId(params.id, "Question not found");
     return NextResponse.json(await undoLastAttempt(viewer.id, params.id));
   },
-  { errorStatus: 400 },
+  { permission: "practice.track", errorStatus: 400 },
 );

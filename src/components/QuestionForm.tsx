@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { OptionSelect } from "@/components/OptionSelect";
+import { useCan } from "@/components/ViewerProvider";
 import { useRef, useState } from "react";
 import { send } from "@/lib/api";
 import { CONFIDENCE_LABELS, DIFFICULTIES } from "@/lib/constants";
@@ -62,6 +63,9 @@ export function QuestionForm({
   const lookupSeq = useRef(0);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggesting = mode === "suggest-new" || mode === "suggest-edit";
+  // Status / star / "already solved" go to the creator's own progress; admins don't practise.
+  const practises = useCan("practice.track");
+  const personalExtras = mode === "create" && practises;
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -204,7 +208,7 @@ export function QuestionForm({
             ))}
           </select>
         </label>
-        {mode === "create" ? (
+        {personalExtras ? (
           <label className="grid gap-1 text-sm">
             Your status
             <select
@@ -218,7 +222,7 @@ export function QuestionForm({
           </label>
         ) : null}
       </div>
-      {mode === "create" ? (
+      {personalExtras ? (
         <p className="-mt-2 text-xs text-muted">To mark it done, log an attempt (or tick “already solved” below).</p>
       ) : null}
       <div className="grid gap-1 text-sm">
@@ -263,14 +267,14 @@ export function QuestionForm({
           <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="field" />
         </label>
       ) : null}
-      {mode === "create" ? (
+      {personalExtras ? (
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={form.isStarred} onChange={(e) => set("isStarred", e.target.checked)} />
           Star this (weak / must-revise)
         </label>
       ) : null}
 
-      {mode === "create" ? (
+      {personalExtras ? (
         <fieldset className="grid gap-3 rounded-xl border border-line p-3">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={solvedBefore} onChange={(e) => setSolvedBefore(e.target.checked)} />

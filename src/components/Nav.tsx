@@ -9,10 +9,10 @@ import { authClient } from "@/lib/auth-client";
 import { ROLE_INFO, type Permission } from "@/lib/rbac";
 
 const links: { href: string; label: string; permission?: Permission }[] = [
-  { href: "/", label: "Desk" },
-  { href: "/review", label: "Review" },
+  { href: "/", label: "Desk", permission: "practice.track" },
+  { href: "/review", label: "Review", permission: "practice.track" },
   { href: "/questions", label: "Questions" },
-  { href: "/progress", label: "Progress" },
+  { href: "/progress", label: "Progress", permission: "practice.track" },
   { href: "/submissions", label: "Submissions" },
   { href: "/users", label: "Users", permission: "users.manage" },
   { href: "/settings", label: "Settings" },
@@ -24,7 +24,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-bg/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2">
+        <Link href={viewer?.permissions.includes("practice.track") === false ? "/questions" : "/"} className="flex shrink-0 items-center gap-2">
           <Image src="/logo.png" alt="" width={32} height={32} priority />
           <span className="display text-xl tracking-tight text-brass2">CrackQuick</span>
         </Link>

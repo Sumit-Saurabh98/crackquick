@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PracticeOnly } from "@/components/PracticeOnly";
 import { useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { Heatmap } from "@/components/Heatmap";
@@ -22,6 +23,14 @@ const PERIODS = [
 type Metrics = Stats["period"]["current"];
 
 export default function ProgressPage() {
+  return (
+    <PracticeOnly>
+      <Progress />
+    </PracticeOnly>
+  );
+}
+
+function Progress() {
   const [period, setPeriod] = useState<(typeof PERIODS)[number][0]>("week");
   const { data: stats, error } = useApi<Stats>(`/api/stats?period=${period}`);
   const vsLabel = PERIODS.find((p) => p[0] === period)![2];
