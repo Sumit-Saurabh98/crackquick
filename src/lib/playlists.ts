@@ -27,8 +27,7 @@ export async function listPlaylists(userId: string): Promise<Playlist[]> {
 
 export async function addPlaylist(userId: string, raw: unknown) {
   const p = validated(raw);
-  await getSettings(userId); // ensures the settings document exists
-  await Settings.updateOne({ userId }, { $push: { playlists: { _id: new Types.ObjectId(), ...p } } });
+  await Settings.updateOne({ userId }, { $push: { playlists: { _id: new Types.ObjectId(), ...p } } }, { upsert: true });
   return listPlaylists(userId);
 }
 

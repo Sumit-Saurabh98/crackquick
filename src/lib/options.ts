@@ -58,25 +58,15 @@ export async function canonicalName(kind: OptionKind, name: unknown) {
   return (await canonicalNames(kind, [name]))(name);
 }
 
-/** The list with how many catalog (non-retired) questions use each value, A–Z. */
+/**
+ * The list with how many catalog (non-retired) questions use each value, A–Z. A read only: every
+ * write that sets a platform or pattern goes through `canonicalNames`, so the list and the
+ * questions already agree.
+ */
 export async function listOptions(kind: OptionKind): Promise<OptionJSON[]> {
   const field = OPTION_KINDS[kind].field;
-  // Values already on questions (e.g. from an older import) join the list automatically.
-  await ensureOptions(kind, await Question.distinct(field, { [field]: { $nin: [null, ""] } }));
-  const options = await ListOption.find({ kind }).sort({ key: 1 }).lean();
-  // Repair questions whose value differs from the list only in letter case ("LeetCode" vs "Leetcode").
-  if (options.length) {
-    await Question.bulkWrite(
-      options.map((o) => ({
-        updateMany: {
-          filter: { $and: [{ [field]: sameName(String(o.name)) }, { [field]: { $ne: String(o.name) } }] },
-          update: { $set: { [field]: String(o.name) } },
-        },
-      })),
-      { ordered: false },
-    );
-  }
-  const [usage] = await Promise.all([
+  const [options, usage] = await Promise.all([
+    ListOption.find({ kind }).sort({ key: 1 }).lean(),
     Question.aggregate<{ _id: string; n: number }>([
       { $match: { retired: { $ne: true }, [field]: { $nin: [null, ""] } } },
       { $group: { _id: { $toLower: `$${field}` }, n: { $sum: 1 } } },

@@ -40,11 +40,8 @@ export function toPlaylists(raw: unknown): Playlist[] {
 }
 
 export async function getSettings(userId: string): Promise<SettingsDoc> {
-  const doc = await Settings.findOneAndUpdate(
-    { userId },
-    { $setOnInsert: { userId } },
-    { upsert: true, returnDocument: "after" },
-  ).lean<Partial<Omit<SettingsDoc, "playlists">> & { playlists?: StoredPlaylist[] }>();
+  // A read only: a user without a saved document gets the defaults, and the writers upsert it.
+  const doc = await Settings.findOne({ userId }).lean<Partial<Omit<SettingsDoc, "playlists">> & { playlists?: StoredPlaylist[] }>();
   // Older entries were saved without ids; give them one so they can be edited individually.
   if (doc?.playlists?.some((p) => !p._id)) {
     const withIds = doc.playlists.map((p) => ({ _id: p._id ?? new Types.ObjectId(), name: p.name, url: p.url }));
