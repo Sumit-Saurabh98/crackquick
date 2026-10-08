@@ -39,7 +39,7 @@ export function requirePermission(viewer: Viewer, permission: Permission) {
 }
 
 /** Management roles: anyone who can change the catalog, review suggestions or manage users. */
-export const MANAGEMENT: Permission[] = ["catalog.edit", "submissions.review", "users.manage"];
+export const MANAGEMENT: Permission[] = ["catalog.edit", "submissions.review", "users.manage", "announcements.manage"];
 
 export function requireAnyPermission(viewer: Viewer, permissions: Permission[]) {
   if (!permissions.some((p) => can(viewer, p))) throw new HttpError("You don't have permission to do that.", 403);

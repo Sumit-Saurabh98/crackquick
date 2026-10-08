@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   "lists.manage": "Add, rename and delete platforms and patterns",
   "submissions.review": "See everyone's suggestions; approve or reject them",
   "users.manage": "See all users and change their roles",
+  "announcements.manage": "Post, schedule, edit and end announcements on everyone's Desk",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -36,8 +37,8 @@ export const ROLE_INFO: Record<Role, { label: string; description: string; permi
   },
   admin: {
     label: "Admin",
-    description: "Runs the app: catalog, lists, reviews, deleting questions and roles. No personal practice.",
-    permissions: ["catalog.edit", "catalog.delete", "lists.manage", "submissions.review", "users.manage"],
+    description: "Runs the app: catalog, lists, reviews, deleting questions, roles and announcements. No personal practice.",
+    permissions: ["catalog.edit", "catalog.delete", "lists.manage", "submissions.review", "users.manage", "announcements.manage"],
   },
 };
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { AuditList } from "@/components/AuditList";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { FeaturedCard } from "@/components/FeaturedCard";
 import { Spinner } from "@/components/Spinner";
@@ -17,6 +18,7 @@ import { useApi } from "@/lib/useApi";
 export function AdminDashboard() {
   const { data, error, reload } = useApi<OverviewJSON>("/api/admin/overview");
   const canEdit = useCan("catalog.edit");
+  const canAnnounce = useCan("announcements.manage");
   const [toast, setToast] = useState("");
   const clearToast = useCallback(() => setToast(""), []);
   if (error && !data) return <ErrorPanel error={error} />;
@@ -44,6 +46,7 @@ export function AdminDashboard() {
         </Link>
       ) : null}
 
+      <AnnouncementBanner />
       <FeaturedCard />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -68,6 +71,7 @@ export function AdminDashboard() {
             warn={catalog.health.withIssues > 0}
           />
         ) : null}
+        {canAnnounce ? <Tile label="Announcements" value={data.announcementsLive ?? 0} hint="live now · manage" href="/announcements" /> : null}
         {catalog.duplicates !== null ? (
           <Tile label="Possible duplicates" value={catalog.duplicates} href="/duplicates" warn={catalog.duplicates > 0} />
         ) : null}

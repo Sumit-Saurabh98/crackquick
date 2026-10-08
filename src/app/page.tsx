@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AdminDashboard } from "@/components/AdminDashboard";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { FeaturedCard } from "@/components/FeaturedCard";
 import { PracticeOnly } from "@/components/PracticeOnly";
 import { ErrorPanel } from "@/components/ErrorPanel";
@@ -92,6 +93,7 @@ function Desk() {
         </p>
       ) : null}
 
+      <AnnouncementBanner />
       <FeaturedCard />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">

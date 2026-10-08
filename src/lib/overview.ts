@@ -3,6 +3,7 @@ import { findDuplicates } from "./duplicates";
 import { healthReport } from "./health";
 import { can, type Viewer } from "./viewer";
 import { suspendedUserIds, userOverview } from "./users";
+import { Announcement } from "@/models/Announcement";
 import { AuditEntry } from "@/models/AuditEntry";
 import { ActivityEvent } from "@/models/Event";
 import { Question } from "@/models/Question";
@@ -45,6 +46,9 @@ export async function adminOverview(viewer: Viewer) {
       : null,
     users: people,
     recentChanges: changes.map((d) => serializeAudit(d as Record<string, unknown>)),
+    announcementsLive: can(viewer, "announcements.manage")
+      ? await Announcement.countDocuments({ startsAt: { $lte: new Date() }, $or: [{ endsAt: null }, { endsAt: { $gt: new Date() } }] })
+      : null,
   };
 }
 

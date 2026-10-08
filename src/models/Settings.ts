@@ -14,6 +14,8 @@ const SettingsSchema = new Schema(
     timezone: { type: String, default: DEFAULT_TIMEZONE },
     /** YouTube playlists for the music dock. */
     playlists: { type: [{ name: String, url: String }], default: [] },
+    /** Announcements this user closed; they stay hidden on every device. */
+    dismissedAnnouncements: { type: [String], default: [] },
   },
   { timestamps: true },
 );

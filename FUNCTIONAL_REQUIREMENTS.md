@@ -24,7 +24,8 @@ Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose; sign-in w
   | `catalog.delete` | Delete questions | | | ✓ |
   | `lists.manage` | Add / rename / delete Platforms and Patterns | | ✓ | ✓ |
   | `submissions.review` | See everyone's suggestions; approve / reject | | ✓ | ✓ |
-  | `users.manage` | **Users** page: see all accounts, change roles | | | ✓ |
+  | `users.manage` | **Users** page: see all accounts, change roles, suspend | | | ✓ |
+  | `announcements.manage` | Post, schedule, edit, end and delete announcements (§5e) | | | ✓ |
 
 - **Without any permission** a signed-in account can browse the catalog, set its timezone and **suggest** new questions and edits (§2a). Practising needs `practice.track`, which users and editors have.
 - **Admins are management-only**: no Desk, Review or Progress (those pages send them to the catalog), no log / star / notes / hide, no interview date or revision ladder, no music. Their Questions list is the catalog (no personal filters; sorted by recently updated), and a question page shows its details with Edit / Retire / Delete. The server refuses practice requests from them (403), not just the UI.
@@ -186,6 +187,12 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 - **Link check** (“Check links now” on the Health page): checks every problem and video link in the live catalog, 50 per request until done, with progress (≈30 s for ~570 links). LeetCode links are checked against LeetCode's full problem list (one request; also gives the Premium flag); YouTube links via YouTube's oEmbed (a removed video answers 404); other links by loading the page (404 / 410 = broken). Anything that can't be confirmed (blocked, timed out, private) is not reported as broken. GeeksforGeeks answers 200 even for missing problems, so a dead GFG link isn't detected. Results are kept per link; the page shows when the last full run finished.
 - **Question of the day** (Desk card for learners with their status and Log; dashboard card for admins with cycle progress): one question per calendar date, the same for everyone, picked automatically the first time anyone opens that day. Picks are random among live questions not yet featured in the current cycle, so **no question repeats until every live question has been featured**; then a new cycle starts. New questions join the current cycle's pool; a featured question that gets retired is replaced that day. The date is each user's own “today” (their timezone).
 
+## 5e. Announcements
+
+- **Banner** at the top of every learner's Desk (and the admin dashboard) while an announcement is live: kind (New / Note / Heads up, each with its own colour), a message of up to 280 characters, and an optional link (https://… opens in a new tab, or a page in the app such as `/questions?topic=Graph`). Several can be live at once (newest first, up to 5).
+- **Dismiss** (✕): hidden for that person for good, on every device (stored on their account); others still see it.
+- **Announcements page** (`/announcements`, dashboard tile with the live count; `announcements.manage`): write with a live preview; start date (today = post now, later = scheduled) and optional last day (shown through that whole day in the author's timezone; empty = until ended). The list shows each as scheduled / live / ended with its dates and author; **Edit** (not ended), **End now** (live), **Delete**.
+
 ## 6. Non-functional
 
 - Secrets (`MONGODB_URI`, `BETTER_AUTH_SECRET`, OAuth keys) only in `.env.local` (git-ignored); `.env.example` lists them.
@@ -200,7 +207,7 @@ Gamification, leaderboards, email verification / password reset (needs an email 
 
 ## 8. Planned admin features (not built yet)
 
-Proposals, not current behaviour (except 8.1, 8.2 and 8.3, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
+Proposals, not current behaviour (except 8.1, 8.2, 8.3 and announcements in 8.4, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
 
 ### 8.1 Highest value (P1): done
 
@@ -214,10 +221,11 @@ Built; see §5c (suspension, rate limits, saved rejection reasons, duplicate fin
 
 9 (health report) and 11 (question of the day, made automatic) are built; see §5d. 10 (curated lists) was dropped.
 
-### 8.4 Users (P3)
+### 8.4 Users (P3): 13 done
+
+13 (announcements) is built; see §5e. 12 is not planned for now:
 
 12. **User detail page** (from the Users page): sign-in methods, join date, last active, streak, counts of done / in progress, submissions with outcomes, role history. For support (“my progress vanished”). Read-only; no notes content. *Permission*: `users.manage`.
-13. **Announcements**: a dismissible banner on everyone's Desk (“New: Graph section added”), with start / end dates. *Permission*: new `announcements.manage` (admin).
 
 ### 8.5 Operations (P3)
 
