@@ -5,12 +5,14 @@ import { ErrorPanel } from "@/components/ErrorPanel";
 import { Heatmap } from "@/components/Heatmap";
 import { DifficultyPill, RevisionPill } from "@/components/Pills";
 import { Spinner } from "@/components/Spinner";
+import { useCan } from "@/components/ViewerProvider";
 import { formatDate } from "@/lib/dates";
 import type { Stats } from "@/lib/stats";
 import { useApi } from "@/lib/useApi";
 
 export default function DeskPage() {
   const { data: stats, error } = useApi<Stats>("/api/stats?period=day");
+  const canEdit = useCan("catalog.edit");
 
   if (error && !stats) return <ErrorPanel error={error} />;
   if (!stats) return <Spinner />;
@@ -19,13 +21,15 @@ export default function DeskPage() {
   if (t.total === 0) {
     return (
       <div className="card mx-auto grid max-w-xl gap-4 p-8 text-center">
-        <h1 className="display text-3xl text-brass2">Start your list</h1>
+        <h1 className="display text-3xl text-brass2">{canEdit ? "Start the catalog" : "Nothing to practise yet"}</h1>
         <p className="text-sm text-muted">
-          Add problems from LeetCode or GeeksforGeeks by number or link, or add your own.
+          {canEdit
+            ? "Add problems from LeetCode or GeeksforGeeks by number or link, or add your own. Everyone gets them."
+            : "The catalog is empty. Suggest a problem and an admin or editor will add it."}
         </p>
         <div className="flex justify-center">
           <Link href="/questions/new" className="btn-primary">
-            Add questions
+            {canEdit ? "Add questions" : "Suggest a question"}
           </Link>
         </div>
       </div>

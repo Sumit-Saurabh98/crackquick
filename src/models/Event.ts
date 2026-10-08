@@ -19,6 +19,7 @@ const SnapshotSchema = new Schema(
 
 const EventSchema = new Schema(
   {
+    userId: { type: String, required: true },
     questionId: { type: Schema.Types.ObjectId, ref: "Question", required: true },
     type: {
       type: String,
@@ -36,8 +37,9 @@ const EventSchema = new Schema(
   { timestamps: false },
 );
 
-EventSchema.index({ at: 1 });
-EventSchema.index({ questionId: 1, at: -1 });
+EventSchema.index({ userId: 1, at: 1 });
+EventSchema.index({ userId: 1, questionId: 1, at: -1 });
+EventSchema.index({ questionId: 1 });
 
 export const ActivityEvent =
   defineModel("ActivityEvent", EventSchema);

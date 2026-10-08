@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
-import { connection } from "next/server";
+import { headers } from "next/headers";
 import { MusicDock } from "@/components/MusicDock";
 import { Nav } from "@/components/Nav";
 import { TimezoneInit } from "@/components/TimezoneInit";
+import { ViewerProvider, type ClientViewer } from "@/components/ViewerProvider";
 import { DEFAULT_TIMEZONE } from "@/lib/constants";
-import { getTimezone } from "@/lib/dates";
-import { dbConnect } from "@/lib/mongodb";
+import { getViewer } from "@/lib/viewer";
 import type { Playlist } from "@/lib/youtube";
-import { getSettings } from "@/models/Settings";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,32 +27,37 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: "CrackQuick — DSA mastery tracker",
-  description: "Personal spaced-repetition tracker for product-interview DSA prep.",
+  description: "Spaced-repetition tracker for product-interview DSA prep.",
 };
 
-/** Timezone (default IST) and music playlists from Settings; defaults if MongoDB isn't reachable. */
-async function appSettings(): Promise<{ tz: string; playlists: Playlist[] }> {
-  await connection(); // per request, so a changed setting applies without a rebuild
+/** The signed-in user with their timezone (default IST) and playlists; signed out if MongoDB isn't reachable. */
+async function session(): Promise<{ viewer: ClientViewer | null; tz: string; playlists: Playlist[] }> {
   try {
-    await dbConnect();
-    return { tz: getTimezone(), playlists: (await getSettings()).playlists };
+    const v = await getViewer(await headers());
+    if (v) {
+      const viewer = { id: v.id, name: v.name, email: v.email, role: v.role, permissions: v.permissions };
+      return { viewer, tz: v.settings.timezone, playlists: v.settings.playlists };
+    }
   } catch {
-    return { tz: DEFAULT_TIMEZONE, playlists: [] };
+    // fall through to signed out
   }
+  return { viewer: null, tz: DEFAULT_TIMEZONE, playlists: [] };
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const { tz, playlists } = await appSettings();
+  const { viewer, tz, playlists } = await session();
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TimezoneInit tz={tz} />
-        <Nav />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-20 sm:px-6">{children}</main>
-        <MusicDock playlists={playlists} />
+        <ViewerProvider viewer={viewer}>
+          <TimezoneInit tz={tz} />
+          <Nav />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-20 sm:px-6">{children}</main>
+          {viewer ? <MusicDock playlists={playlists} /> : null}
+        </ViewerProvider>
       </body>
     </html>
   );

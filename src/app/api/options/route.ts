@@ -1,27 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { NextResponse } from "next/server";
 import { createOption, listOptions, parseKind } from "@/lib/options";
+import { route } from "@/lib/viewer";
 
 /** GET ?kind=platform|pattern → { items: [{ _id, name, count }] } */
-export async function GET(req: NextRequest) {
-  try {
-    const kind = parseKind(req.nextUrl.searchParams.get("kind"));
-    await dbConnect();
-    return NextResponse.json({ items: await listOptions(kind) });
-  } catch (e) {
-    return fail(e);
-  }
-}
+export const GET = route(async (req) =>
+  NextResponse.json({ items: await listOptions(parseKind(req.nextUrl.searchParams.get("kind"))) }),
+);
 
-/** Body: { kind, name } */
-export async function POST(req: NextRequest) {
-  try {
+/** Needs lists.manage. Body: { kind, name } */
+export const POST = route(
+  async (req) => {
     const body = await req.json();
-    const kind = parseKind(body.kind);
-    await dbConnect();
-    return NextResponse.json({ item: await createOption(kind, body.name) }, { status: 201 });
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+    return NextResponse.json({ item: await createOption(parseKind(body.kind), body.name) }, { status: 201 });
+  },
+  { permission: "lists.manage", errorStatus: 400 },
+);

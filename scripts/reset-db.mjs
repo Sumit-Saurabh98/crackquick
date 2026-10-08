@@ -1,11 +1,12 @@
 // Start fresh: backs up every collection to backups/<db>-<timestamp>.json, then deletes all
-// questions and attempt history. Settings are kept. Dry run unless --yes is passed.
+// questions, everyone's progress and attempt history, and submissions. Accounts and settings are
+// kept. Dry run unless --yes is passed.
 //   npm run reset-db            → show what would be deleted
 //   npm run reset-db -- --yes   → back up, then delete
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import mongoose from "mongoose";
 
-const WIPE = ["questions", "activityevents", "daylogs"];
+const WIPE = ["questions", "progress", "activityevents", "submissions", "daylogs"];
 const env = await readFile(new URL("../.env.local", import.meta.url), "utf8");
 const uri = env.match(/^MONGODB_URI=(.*)$/m)?.[1]?.trim();
 if (!uri) throw new Error("MONGODB_URI missing from .env.local");

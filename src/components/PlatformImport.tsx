@@ -60,7 +60,7 @@ export function PlatformImport() {
     try {
       const questions = found.filter((p) => picked.has(p.platformUrl));
       const r = await send<{ imported: number; skipped: number }>("/api/import", "POST", { questions, pattern });
-      setMessage(`Imported ${r.imported}${r.skipped ? `, skipped ${r.skipped} already in your library` : ""}.`);
+      setMessage(`Imported ${r.imported}${r.skipped ? `, skipped ${r.skipped} already in the catalog` : ""}.`);
       setFound(null);
       setInput("");
     } catch (err) {
@@ -136,7 +136,7 @@ export function PlatformImport() {
         <p className="rounded-xl bg-good/10 px-4 py-3 text-sm text-good">
           {message}{" "}
           <Link href="/questions?sort=updated" className="underline">
-            Open library
+            Open questions
           </Link>
         </p>
       ) : null}
@@ -146,7 +146,7 @@ export function PlatformImport() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
             <p className="text-sm">
               Found {found.length}
-              {found.length - fresh.length ? ` · ${found.length - fresh.length} already in library` : ""}
+              {found.length - fresh.length ? ` · ${found.length - fresh.length} already in catalog` : ""}
             </p>
             <div className="flex gap-2">
               <button
@@ -196,6 +196,140 @@ export function PlatformImport() {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * For users: look up one LeetCode / GFG problem and send it for review instead of adding it.
+ * The server allows one lookup result and one pending suggestion at a time.
+ */
+export function PlatformSuggest({ onSent }: { onSent: () => void }) {
+  const [platform, setPlatform] = useState<PlatformKey>("leetcode");
+  const [input, setInput] = useState("");
+  const [found, setFound] = useState<Found | null>(null);
+  const [pattern, setPattern] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<"" | "lookup" | "send">("");
+  const conf = PLATFORMS.find((p) => p.id === platform)!;
+
+  async function lookup(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy("lookup");
+    setError("");
+    setFound(null);
+    try {
+      const r = await send<{ items: Found[]; errors: string[] }>("/api/lookup", "POST", { platform, input });
+      if (r.items[0]) setFound(r.items[0]);
+      else setError(r.errors[0] ?? `Couldn't find that on ${conf.label}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lookup failed");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function submit() {
+    if (!found) return;
+    setBusy("send");
+    setError("");
+    try {
+      await send("/api/submissions", "POST", { ...found, kind: "new", pattern, note });
+      onSent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send");
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className="grid gap-4">
+      <form onSubmit={lookup} className="card grid gap-4 p-5">
+        <div className="flex flex-wrap gap-1.5">
+          {PLATFORMS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={platform === p.id}
+              onClick={() => {
+                setPlatform(p.id);
+                setFound(null);
+                setError("");
+              }}
+              className="chip"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <label className="grid gap-1 text-sm">
+          Which problem
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={platform === "gfg" ? "https://www.geeksforgeeks.org/problems/… or a name" : "146, a link, or a name like LRU Cache"}
+            className="field font-mono text-[13px]"
+          />
+          <span className="text-xs text-muted">One problem: its number, link or exact name. Details are filled in from {conf.label}.</span>
+        </label>
+        <div className="flex justify-end">
+          <button disabled={!input.trim() || busy !== ""} className="btn-primary">
+            {busy === "lookup" ? `Looking up on ${conf.label}…` : "Look up"}
+          </button>
+        </div>
+      </form>
+
+      {error ? <p className="rounded-xl bg-warn/10 px-4 py-3 text-sm text-warn">{error}</p> : null}
+
+      {found ? (
+        <section className="card grid gap-4 p-5">
+          <div className="grid gap-1">
+            <p className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted">
+                {found.platform} #{found.externalId}
+              </span>
+              <a href={found.platformUrl} target="_blank" rel="noreferrer" className="font-medium hover:text-brass2">
+                {found.title} ↗
+              </a>
+              <DifficultyPill value={found.difficulty} />
+              {found.paidOnly ? <span className="pill bg-brass/15 text-brass2">premium</span> : null}
+            </p>
+            <p className="text-xs text-muted">
+              {[found.topics.join(", "), found.companies.length ? `companies: ${found.companies.slice(0, 8).join(", ")}${found.companies.length > 8 ? "…" : ""}` : ""]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+
+          {found.existingId ? (
+            <p className="rounded-lg bg-white/5 px-3 py-2 text-sm">
+              Already in the catalog.{" "}
+              <Link href={`/questions/${found.existingId}`} className="text-brass2 underline">
+                Open it
+              </Link>
+            </p>
+          ) : (
+            <>
+              <div className="grid gap-1 text-sm">
+                <label htmlFor="suggest-pattern">
+                  Pattern <span className="text-xs text-muted">optional</span>
+                </label>
+                <OptionSelect id="suggest-pattern" kind="pattern" value={pattern} onChange={setPattern} />
+              </div>
+              <label className="grid gap-1 text-sm">
+                Note for the reviewer <span className="text-xs text-muted">optional: why it&apos;s worth adding</span>
+                <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="field" />
+              </label>
+              <div className="flex justify-end">
+                <button onClick={submit} disabled={busy !== ""} className="btn-primary">
+                  {busy === "send" ? "Sending…" : "Send for review"}
+                </button>
+              </div>
+            </>
+          )}
         </section>
       ) : null}
     </div>

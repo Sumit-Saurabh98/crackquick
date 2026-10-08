@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
 import { fromGfg, gfgDetail, leetcodeCompanies } from "@/lib/platforms";
 import { parseProblemUrl } from "@/lib/problemUrl";
+import { route } from "@/lib/viewer";
 import { Question } from "@/models/Question";
 
-/** Fills company tags on LeetCode / GFG questions that have none (e.g. imported before tags were supported). */
-export async function POST() {
-  try {
-    await dbConnect();
+/** Needs catalog.edit. Fills company tags on LeetCode / GFG questions that have none (e.g. imported before tags were supported). */
+export const POST = route(
+  async () => {
     const docs = await Question.find(
       { $or: [{ companies: { $size: 0 } }, { companies: { $exists: false } }], platformUrl: { $ne: "" } },
       { platformUrl: 1 },
@@ -40,7 +38,6 @@ export async function POST() {
       );
     }
     return NextResponse.json({ checked: docs.length, updated: updates.length });
-  } catch (e) {
-    return fail(e);
-  }
-}
+  },
+  { permission: "catalog.edit" },
+);

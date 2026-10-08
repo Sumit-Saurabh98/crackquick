@@ -58,7 +58,7 @@ export async function canonicalName(kind: OptionKind, name: unknown) {
   return (await canonicalNames(kind, [name]))(name);
 }
 
-/** The list with how many (non-archived) questions use each value, A–Z. */
+/** The list with how many catalog (non-retired) questions use each value, A–Z. */
 export async function listOptions(kind: OptionKind): Promise<OptionJSON[]> {
   const field = OPTION_KINDS[kind].field;
   // Values already on questions (e.g. from an older import) join the list automatically.
@@ -78,7 +78,7 @@ export async function listOptions(kind: OptionKind): Promise<OptionJSON[]> {
   }
   const [usage] = await Promise.all([
     Question.aggregate<{ _id: string; n: number }>([
-      { $match: { archived: { $ne: true }, [field]: { $nin: [null, ""] } } },
+      { $match: { retired: { $ne: true }, [field]: { $nin: [null, ""] } } },
       { $group: { _id: { $toLower: `$${field}` }, n: { $sum: 1 } } },
     ]),
   ]);

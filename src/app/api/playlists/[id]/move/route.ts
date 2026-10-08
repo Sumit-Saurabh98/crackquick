@@ -1,16 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { NextResponse } from "next/server";
 import { movePlaylist } from "@/lib/playlists";
+import { route } from "@/lib/viewer";
 
 /** Body: { dir: -1 (up) | 1 (down) } */
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+export const POST = route<{ id: string }>(
+  async (req, { viewer, params }) => {
     const { dir } = await req.json();
-    await dbConnect();
-    return NextResponse.json({ items: await movePlaylist(id, dir === -1 ? -1 : 1) });
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+    return NextResponse.json({ items: await movePlaylist(viewer.id, params.id, dir === -1 ? -1 : 1) });
+  },
+  { errorStatus: 400 },
+);

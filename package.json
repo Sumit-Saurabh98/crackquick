@@ -8,9 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "update:companies": "node scripts/build-leetcode-companies.mjs",
-    "reset-db": "node scripts/reset-db.mjs"
+    "reset-db": "node scripts/reset-db.mjs",
+    "migrate-accounts": "node scripts/migrate-to-accounts.mjs",
+    "set-role": "node scripts/set-role.mjs"
   },
   "dependencies": {
+    "better-auth": "1.7.6",
+    "mongodb": "6.20.0",
     "mongoose": "^8.19.1",
     "next": "16.3.8",
     "react": "19.2.8",

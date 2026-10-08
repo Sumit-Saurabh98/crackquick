@@ -4,6 +4,7 @@ import { defineModel } from "./model";
 export const QUESTION_STATUSES = ["todo", "in_progress", "done"] as const;
 export const QUESTION_DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
 
+/** The shared catalog entry. Each user's own state on it lives in `Progress`. Only admins change these. */
 const QuestionSchema = new Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -13,7 +14,6 @@ const QuestionSchema = new Schema(
     videoUrls: { type: [String], default: [] },
     // Legacy single link; read into videoUrls and cleared when the question is next edited.
     videoUrl: { type: String },
-    notes: { type: String, default: "" },
     topics: { type: [String], default: [] },
     companies: { type: [String], default: [] },
     difficulty: {
@@ -21,26 +21,17 @@ const QuestionSchema = new Schema(
       enum: QUESTION_DIFFICULTIES,
       default: "Medium",
     },
-    status: { type: String, enum: QUESTION_STATUSES, default: "todo" },
-    timesSolved: { type: Number, default: 0 },
-    lapses: { type: Number, default: 0 },
-    lastSolvedAt: { type: Date, default: null },
-    nextRevisionAt: { type: Date, default: null },
-    revisionStage: { type: Number, default: 0 },
-    confidence: { type: Number, default: 0 },
-    timeSpentMinutes: { type: Number, default: 0 },
-    totalMinutes: { type: Number, default: 0 },
     pattern: { type: String, default: "" },
-    isStarred: { type: Boolean, default: false },
-    archived: { type: Boolean, default: false },
+    /** Taken out of the catalog by an admin; users who practised it keep their history. */
+    retired: { type: Boolean, default: false },
+    createdBy: { type: String, default: "" },
   },
   { timestamps: true },
 );
 
-QuestionSchema.index({ archived: 1, status: 1, nextRevisionAt: 1 });
+QuestionSchema.index({ retired: 1 });
 QuestionSchema.index({ difficulty: 1 });
 QuestionSchema.index({ topics: 1 });
-QuestionSchema.index({ lastSolvedAt: 1 });
 QuestionSchema.index({ platformUrl: 1 });
 
 export type QuestionDoc = mongoose.InferSchemaType<typeof QuestionSchema> & {

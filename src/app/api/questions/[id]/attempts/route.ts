@@ -1,35 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { logAttempt, parseAttemptInput } from "@/lib/attempts";
-import { fail, notFoundUnlessValidId } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { checkId } from "@/lib/http";
 import { serializeAttempt } from "@/lib/serialize";
+import { route } from "@/lib/viewer";
 import { ActivityEvent } from "@/models/Event";
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-export async function GET(_req: NextRequest, { params }: Ctx) {
-  try {
-    const { id } = await params;
-    const bad = notFoundUnlessValidId(id);
-    if (bad) return bad;
-    await dbConnect();
-    const docs = await ActivityEvent.find({ questionId: id }).sort({ at: -1, _id: -1 }).lean();
-    return NextResponse.json({ items: docs.map((d) => serializeAttempt(d as Record<string, unknown>)) });
-  } catch (e) {
-    return fail(e);
-  }
-}
+/** The viewer's own attempts on this question, newest first. */
+export const GET = route<P>(async (_req, { viewer, params }) => {
+  const questionId = checkId(params.id, "Question not found");
+  const docs = await ActivityEvent.find({ userId: viewer.id, questionId }).sort({ at: -1, _id: -1 }).lean();
+  return NextResponse.json({ items: docs.map((d) => serializeAttempt(d as Record<string, unknown>)) });
+});
 
-/** Body: { outcome: "recalled" | "blanked", confidence 1-5, minutes?, mistakes?, solvedAt? } */
-export async function POST(req: NextRequest, { params }: Ctx) {
-  try {
-    const { id } = await params;
-    const bad = notFoundUnlessValidId(id);
-    if (bad) return bad;
-    await dbConnect();
+/** Body: { outcome: "recalled" | "blanked", confidence 1-5, minutes?, solvedAt? } */
+export const POST = route<P>(
+  async (req, { viewer, params }) => {
+    checkId(params.id, "Question not found");
     const input = parseAttemptInput(await req.json());
-    return NextResponse.json(await logAttempt(id, input));
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+    return NextResponse.json(await logAttempt(viewer.id, viewer.settings.intervals, params.id, input));
+  },
+  { errorStatus: 400 },
+);

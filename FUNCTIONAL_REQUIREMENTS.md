@@ -1,47 +1,75 @@
 # CrackQuick — Functional Requirements
 
-Personal DSA tracker for product-company interview prep. Single user, no login.
+DSA tracker for product-company interview prep. Multi-user: one shared question catalog curated by editors and admins; each user's progress, notes, schedule and settings are their own.
 Goal: keep every question in one place, never miss a revision, and see progress at a glance.
 
-Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose.
+Stack: Next.js (App Router) full stack + MongoDB (Atlas) via Mongoose; sign-in with Better Auth (same database).
+
+> **Revision 6 (2026-10-09)**: accounts and role-based access (user / editor / admin, stored per account). Sign in with email + password, GitHub or Google; anyone can sign up. Questions split into a shared catalog (admin-owned) and per-user progress. Users suggest new questions and edits; admins approve them. Timezone, ladder, interview date and playlists are per user.
 
 > **Revision 5 (2026-10-04)**: simplified. Gamification (XP, levels, badges, daily quests, review debt, leech/rusty labels, mistake tags, “mastery” score, pattern field) was removed so the dashboard only shows what's needed to track yourself. Nothing is hard-coded: timezone is a setting (default IST, `Asia/Kolkata`), the revision ladder is editable in Settings, and dropdown options come from your own data.
 
 ---
 
+## 0. Accounts and roles
+
+- **Sign in**: email + password (8+ characters), **GitHub** or **Google** (each button appears once its OAuth keys are set). Anyone can sign up. A GitHub/Google login with the same verified email as an existing account signs in to that account.
+- Signed-out visitors are sent to `/login` (then back to the page they wanted). Every API route checks the session on the server, and the permission it needs.
+- **Role-based access** (`src/lib/rbac.ts`). Each account has one role, stored on the account in the database (new accounts: `user`). Roles grant permissions; the server checks permissions, never role names. The role is read from the database on each request, so a change applies on the user's next click.
+
+  | Permission | What it allows | user | editor | admin |
+  | --- | --- | :-: | :-: | :-: |
+  | `catalog.edit` | Add (LeetCode/GFG lookup of up to 100 at once, manual, JSON import), edit and retire questions; fill company tags | | ✓ | ✓ |
+  | `catalog.delete` | Delete questions | | | ✓ |
+  | `lists.manage` | Add / rename / delete Platforms and Patterns | | ✓ | ✓ |
+  | `submissions.review` | See everyone's suggestions; approve / reject | | ✓ | ✓ |
+  | `users.manage` | **Users** page: see all accounts, change roles | | | ✓ |
+
+- **Every user** (no permission needed) works on their own data only: log attempts, undo, review, reset status, star, notes, hide a question for themselves, settings, playlists, export; and can **suggest** new questions and edits (§2a).
+- **Users page** (admins): every account with its sign-in methods and join date, and a role picker. The last admin can't be demoted. The first admin is made from the command line: `npm run set-role -- <email> admin` (the account must exist).
+- New users see the whole catalog straight away, every question starting as todo.
+
 ## 1. Data
 
-### 1.1 Question
+### 1.1 Question (shared catalog, changed with `catalog.edit`)
 
 | Field | Purpose |
 | --- | --- |
 | title | Problem name |
-| platform | Chosen from your **Platforms** list (§1.4) |
+| platform | Chosen from the **Platforms** list (§1.4) |
 | platformUrl | Link to the problem; stored in canonical form and used to detect duplicates |
 | externalId | LeetCode problem number / GFG problem id; searchable (“146”) and shown as “LeetCode #146” |
 | videoUrls[] | Explanation videos (any number of links) |
-| notes | Markdown: approach, pitfalls, complexity, code |
-| topics[] | From the platform's tags on import, or typed by you |
+| topics[] | From the platform's tags on import, or typed in |
 | companies[] | Companies that ask it (§3.3) |
 | difficulty | Easy / Medium / Hard |
+| pattern | Chosen from the **Patterns** list (§1.4), e.g. Two pointers, Sliding window |
+| retired | Taken out of the catalog by an editor/admin: gone from everyone's lists, history kept |
+
+### 1.1a Progress (per user, per question)
+
+Created on the user's first change to a question; absent = untouched (todo).
+
+| Field | Purpose |
+| --- | --- |
 | status | `todo` / `in_progress` / `done` |
 | timesSolved, lapses | Successful solves/revisions; times blanked |
 | lastSolvedAt, nextRevisionAt, revisionStage, confidence | Revision schedule |
 | timeSpentMinutes, totalMinutes | Last and total time |
-| pattern | Chosen from your **Patterns** list (§1.4), e.g. Two pointers, Sliding window |
-| isStarred, archived | Pin; hide without losing history |
+| notes | Markdown: approach, pitfalls, complexity, code (private) |
+| isStarred, archived | Pin; **hide for me** (out of my lists and queue, history kept) |
 
-### 1.2 Attempt (activity log)
+### 1.2 Attempt (activity log, per user)
 
-One per Log attempt: `questionId`, `type` (`solved` first time / `revised` later / `failed_recall` blanked), `at`, `confidence`, `minutes`, `onTime`, `difficulty` snapshot, `backfill` flag, and `prev` (schedule before the attempt, for **Undo last log**). History, streak, heatmap and period progress all come from these.
+One per Log attempt: `userId`, `questionId`, `type` (`solved` first time / `revised` later / `failed_recall` blanked), `at`, `confidence`, `minutes`, `onTime`, `difficulty` snapshot, `backfill` flag, and `prev` (schedule before the attempt, for **Undo last log**). History, streak, heatmap and period progress all come from these.
 
-### 1.3 Settings
+### 1.3 Settings (per user)
 
-`interviewDate`, `intervals` (revision ladder in days, default `1, 3, 7, 14, 30, 60, 90`), `timezone` (default `Asia/Kolkata`, IST).
+`interviewDate`, `intervals` (revision ladder in days, default `1, 3, 7, 14, 30, 60, 90`), `timezone` (default `Asia/Kolkata`, IST), music `playlists`.
 
-### 1.4 Platforms and patterns (managed lists)
+### 1.4 Platforms and patterns (managed lists, `lists.manage`)
 
-- Two lists you control: **Platforms** (LeetCode, Codeforces, …) and **Patterns** (Two pointers, Sliding window, …). Nothing is pre-filled.
+- Two shared lists that editors and admins control (everyone picks from them): **Platforms** (LeetCode, Codeforces, …) and **Patterns** (Two pointers, Sliding window, …). Nothing is pre-filled.
 - **Create**: “+ Add new…” at the bottom of the dropdown while adding/editing a question, or in Settings.
 - **Rename**: in the dropdown's **Manage** dialog or Settings; every question using the old name is updated. Names are unique ignoring case.
 - **Delete**: shows how many questions use it; those questions keep everything else and just lose that value.
@@ -51,6 +79,8 @@ One per Log attempt: `questionId`, `type` (`solved` first time / `revised` later
 
 ## 2. Questions
 
+Adding and editing below needs `catalog.edit` (others suggest instead, §2a).
+
 - **Add from LeetCode / GeeksforGeeks** (default on the Add page):
   - LeetCode: numbers (`1, 15, 146`), ranges (`200-210`), links, slugs or exact names.
   - GeeksforGeeks: links, problem ids, slugs or names.
@@ -58,10 +88,18 @@ One per Log attempt: `questionId`, `type` (`solved` first time / `revised` later
   - Fills title, difficulty, topics (platform tags), companies, problem number and a YouTube search link for a video.
   - Optional pattern applied to everything imported.
 - **Add manually**: pasting a LeetCode/GFG link fetches the same details.
-- **Already solved before using the app?** Tick it when adding (or in the Log dialog for an untouched question) with the date and how well you know it. It's scheduled from that date, so old solves land in the review queue if they're due.
-- Edit any field except the schedule (that changes only by logging attempts). Status can be reset to todo / in progress (clears the schedule; history kept). **Done is reached only by logging an attempt.**
-- Archive (hide, keep history) or Delete (removes question and its history).
-- Library: search (title, notes, topics, companies, pattern, problem number), filters (schedule, difficulty, status, last done, confidence, topic, pattern, company, platform, starred, archived; options come from your data), sort, 50 per page, filters kept in the URL.
+- **Already solved before using the app?** Any user can tick it in the Log dialog for an untouched question (editors/admins also when adding) with the date and how well they know it. It's scheduled from that date, so old solves land in the review queue if they're due.
+- Admins edit the catalog fields. Each user's own status can be reset to todo / in progress on the question page (clears their schedule; history kept). **Done is reached only by logging an attempt.**
+- **Hide for me** (any user): out of your lists, queue and totals; history kept; undo with Unhide.
+- **Retire** (`catalog.edit`): out of the catalog for everyone; history kept; Restore brings it back. **Delete** (`catalog.delete`) removes the question with all progress and attempts on it, and is refused while other users have attempts on it.
+- Library: search (title, your notes, topics, companies, pattern, problem number), filters (schedule, difficulty, status, last done, confidence, topic, pattern, company, platform, starred, hidden by me; with `catalog.edit` also retired), sort, 50 per page, filters kept in the URL.
+
+## 2a. Submissions
+
+- **Suggest a question** (users; “+ Suggest”): the same two ways in as adding: **From LeetCode / GFG** (one problem per lookup: number, link or name; details filled in) or **Manual** (pasting a link fills details too). Optional pattern and note, then **Send for review**. Refused if the problem is already in the catalog.
+- **One at a time**: a user can have only one new-question suggestion pending. The next is allowed once a reviewer approves or rejects it (or they withdraw it). Enforced on the server (and by a unique index, so two simultaneous submits can't both get in); the Suggest page shows the waiting one instead of the form.
+- **Suggest an edit** (users, on a question): the same form prefilled; only changed fields are sent (e.g. add a video or company, fix the pattern).
+- **Submissions** page: users see theirs with status (pending / approved / rejected) and the reviewer's note, and can withdraw pending ones. Reviewers (`submissions.review`) get the review queue (pending, approved, rejected, mine): new questions show all fields, edits show old → new per field; Approve applies it to the catalog (re-checking duplicate links), Reject takes an optional reason.
 
 ## 3. Revision
 
@@ -113,26 +151,27 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 
 ## 5. Settings & data
 
-- Interview date, revision intervals, timezone (default IST).
-- Platforms and Patterns lists (add / rename / delete).
-- Import JSON, export a full JSON backup.
-- `npm run reset-db` (dry run) / `npm run reset-db -- --yes`: backs up to `backups/` then deletes all questions and history (settings kept).
+- Everyone: interview date, revision intervals, timezone (default IST), music playlists; **Export** their backup (catalog + their progress, notes, attempts, settings).
+- With `lists.manage`: Platforms and Patterns lists (add / rename / delete). With `catalog.edit`: Import JSON (catalog questions only), Fill missing company tags.
+- `npm run set-role -- <email> <user|editor|admin>`: sets a role (used once for the first admin); with no arguments lists accounts and roles.
+- `npm run migrate-accounts -- --owner <email>` (dry run) / `… --yes`: one-time move of pre-accounts data (progress, notes, attempts, settings, playlists) to that account, creating it if needed; backs up to `backups/` first.
+- `npm run reset-db` (dry run) / `npm run reset-db -- --yes`: backs up to `backups/` then deletes all questions, progress, history and submissions (accounts and settings kept).
 
 ## 5a. Music player
 
-- **♪ Music** button (bottom-right, every page) opens a small player for your YouTube playlists (Settings → Music playlists: add / edit / delete / reorder; any YouTube playlist, mix or video link).
+- **♪ Music** button (bottom-right, every page once signed in) opens a small player for your own YouTube playlists (Settings → Music playlists: add / edit / delete / reorder; any YouTube playlist, mix or video link).
 - Playlist dropdown, song title, “Song n of N”, previous / play-pause / next. Unplayable songs are skipped automatically. Remembers the last playlist on this device.
 - Keeps playing while you move between pages. **Minimize (–)** hides the player completely (video included) while the music keeps playing; the floating button shows the current song with play/pause and reopens the player. ✕ stops it.
 - Note: YouTube's embed terms ask for a visible player; hiding it is a deliberate choice for this personal app.
 
 ## 6. Non-functional
 
-- `MONGODB_URI` only in `.env.local` (git-ignored); `.env.example` is a placeholder.
-- Timezone comes from Settings (default IST), not the device or server: the server applies it on every DB connect, and the root layout passes it to the browser so both agree on “today”.
+- Secrets (`MONGODB_URI`, `BETTER_AUTH_SECRET`, OAuth keys) only in `.env.local` (git-ignored); `.env.example` lists them.
+- Timezone comes from the user's Settings (default IST), not the device or server: the server resolves it per request (so concurrent users in different zones don't mix), and the root layout passes it to the browser so both agree on “today”.
 - A failed MongoDB connect isn't cached, so the app recovers when the DB is back.
 - LeetCode/GFG lookups use their public (unofficial) endpoints server-side; if they change, lookup shows an error and manual add still works.
 - Works at phone width.
 
 ## 7. Out of scope
 
-Accounts, gamification, leaderboards, code execution, native apps, AI solving. Future ideas if needed: more preset lists, reminders (calendar feed), time-to-solve analytics.
+Gamification, leaderboards, email verification / password reset (needs an email provider), private per-user questions, code execution, native apps, AI solving. Future ideas if needed: more preset lists, reminders (calendar feed), time-to-solve analytics.

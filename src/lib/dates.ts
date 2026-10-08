@@ -1,8 +1,9 @@
 import { DEFAULT_TIMEZONE } from "./constants";
 
 /**
- * Calendar helpers in the app's timezone (Settings → Timezone, default IST). The server applies it in
- * `dbConnect`; the browser gets it from the root layout (`TimezoneInit`), so both agree on "today".
+ * Calendar helpers in the user's timezone (Settings → Timezone, default IST). On the server each
+ * request resolves its own user's timezone (`requestContext.ts`); the browser gets it from the root
+ * layout (`TimezoneInit`), so both agree on "today".
  */
 
 export type Ymd = { y: number; m: number; d: number };
@@ -19,9 +20,16 @@ export function isValidTimezone(tz: string) {
 }
 
 let currentTz = DEFAULT_TIMEZONE;
+let resolveTz: (() => string | undefined) | null = null;
 
+/** Browser only: one user per tab, so a module-level value is fine. */
 export function setTimezone(tz: string | null | undefined) {
   currentTz = tz && isValidTimezone(tz) ? tz : DEFAULT_TIMEZONE;
+}
+
+/** Server: looks the timezone up per request, since concurrent requests belong to different users. */
+export function setTimezoneResolver(fn: () => string | undefined) {
+  resolveTz = fn;
 }
 
 /** "India Standard Time (GMT+5:30)" style label for a timezone. */
@@ -34,12 +42,12 @@ export function timezoneLabel(tz: string) {
 }
 
 export function getTimezone() {
-  return currentTz;
+  return resolveTz?.() ?? currentTz;
 }
 
 function parts(date: Date, withTime: boolean) {
   const out = new Intl.DateTimeFormat("en-US", {
-    timeZone: currentTz,
+    timeZone: getTimezone(),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -102,7 +110,7 @@ export function formatDate(date?: Date | string | null, withTime = false) {
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
-    timeZone: currentTz,
+    timeZone: getTimezone(),
     day: "2-digit",
     month: "short",
     year: "numeric",

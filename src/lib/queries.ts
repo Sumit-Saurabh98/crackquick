@@ -3,16 +3,45 @@ import { PAGE_SIZE } from "./constants";
 import { addDays, startOfToday } from "./dates";
 import { listOptions } from "./options";
 import { serializeQuestion } from "./serialize";
+import { can, type Viewer } from "./viewer";
+import { PROGRESS_DEFAULTS } from "@/models/Progress";
 import { Question } from "@/models/Question";
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function buildQuestionFilter(search: URLSearchParams): Record<string, unknown> {
+/**
+ * Stages that give each catalog question the user's own progress fields (defaults when they
+ * haven't touched it), so the filters and sorts below work on one merged row.
+ */
+export function withProgress(userId: string): PipelineStage[] {
+  return [
+    {
+      $lookup: {
+        from: "progress",
+        localField: "_id",
+        foreignField: "questionId",
+        pipeline: [{ $match: { userId } }],
+        as: "_p",
+      },
+    },
+    { $set: { _p: { $first: "$_p" } } },
+    {
+      $set: Object.fromEntries(
+        Object.entries(PROGRESS_DEFAULTS).map(([k, v]) => [k, { $ifNull: [`$_p.${k}`, v] }]),
+      ),
+    },
+    { $unset: "_p" },
+  ];
+}
+
+/** Filter on merged rows (see `withProgress`). Retired questions are listed only for catalog editors asking for them. */
+export function buildQuestionFilter(search: URLSearchParams, viewer: Viewer): Record<string, unknown> {
   const filter: Record<string, unknown> = {};
   const get = (k: string) => search.get(k) || "";
 
+  filter.retired = can(viewer, "catalog.edit") && get("retired") === "1" ? true : { $ne: true };
   filter.archived = get("archived") === "1" ? true : { $ne: true };
   if (get("difficulty")) filter.difficulty = get("difficulty");
   if (get("status")) filter.status = get("status");
@@ -91,13 +120,15 @@ const SORTS: Record<string, Record<string, 1 | -1>> = {
   updated: { updatedAt: -1 },
 };
 
-export async function listQuestions(search: URLSearchParams) {
-  const filter = buildQuestionFilter(search);
+export async function listQuestions(search: URLSearchParams, viewer: Viewer) {
+  const filter = buildQuestionFilter(search, viewer);
   const sort = SORTS[search.get("sort") || "next"] ?? SORTS.next;
   const limit = Math.min(200, Math.max(1, Number(search.get("limit")) || PAGE_SIZE));
   const page = Math.max(1, Number(search.get("page")) || 1);
 
   const pipeline: PipelineStage[] = [
+    { $match: { retired: filter.retired } },
+    ...withProgress(viewer.id),
     { $match: filter },
     {
       $addFields: {
@@ -134,7 +165,7 @@ export async function listQuestions(search: URLSearchParams) {
 
 /** Distinct values that exist in the data, for filter dropdowns. */
 export async function questionFacets() {
-  const live = { archived: { $ne: true } };
+  const live = { retired: { $ne: true } };
   const clean = (xs: unknown[]) =>
     xs
       .map(String)

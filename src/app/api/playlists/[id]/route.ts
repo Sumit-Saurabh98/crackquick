@@ -1,27 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { NextResponse } from "next/server";
 import { deletePlaylist, updatePlaylist } from "@/lib/playlists";
+import { route } from "@/lib/viewer";
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
 /** Edit one. Body: { name, url } */
-export async function PATCH(req: NextRequest, { params }: Ctx) {
-  try {
-    const { id } = await params;
-    await dbConnect();
-    return NextResponse.json({ items: await updatePlaylist(id, await req.json()) });
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+export const PATCH = route<P>(
+  async (req, { viewer, params }) =>
+    NextResponse.json({ items: await updatePlaylist(viewer.id, params.id, await req.json()) }),
+  { errorStatus: 400 },
+);
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
-  try {
-    const { id } = await params;
-    await dbConnect();
-    return NextResponse.json({ items: await deletePlaylist(id) });
-  } catch (e) {
-    return fail(e);
-  }
-}
+export const DELETE = route<P>(async (_req, { viewer, params }) =>
+  NextResponse.json({ items: await deletePlaylist(viewer.id, params.id) }),
+);

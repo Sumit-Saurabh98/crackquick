@@ -2,8 +2,8 @@ import { parseYmdKey, zonedMidnight } from "./dates";
 import { attemptKind, nextStage, revisionState, scheduleRevision, type Outcome } from "./revision";
 import { serializeQuestion } from "./serialize";
 import { ActivityEvent } from "@/models/Event";
+import { progressFor } from "@/models/Progress";
 import { Question } from "@/models/Question";
-import { getSettings } from "@/models/Settings";
 
 export class HttpError extends Error {
   constructor(
@@ -58,19 +58,20 @@ const SNAPSHOT_KEYS = [
   "totalMinutes",
 ] as const;
 
-export async function logAttempt(id: string, input: AttemptInput) {
-  const q = await Question.findById(id);
-  if (!q) throw new HttpError("Question not found", 404);
+/** Logs an attempt on the user's own progress for a catalog question. */
+export async function logAttempt(userId: string, intervals: number[], id: string, input: AttemptInput) {
+  const question = await Question.findById(id).lean();
+  if (!question) throw new HttpError("Question not found", 404);
+  const q = await progressFor(userId, question._id);
 
   const backfill = Boolean(input.solvedAt);
   if (backfill) {
-    const hasHistory = await ActivityEvent.exists({ questionId: q._id });
+    const hasHistory = await ActivityEvent.exists({ userId, questionId: question._id });
     if (hasHistory || q.timesSolved > 0) {
       throw new HttpError("A past solve can only be logged on a question with no history.", 400);
     }
   }
 
-  const { intervals } = await getSettings();
   const at = input.solvedAt ?? new Date();
   const state = revisionState(q.nextRevisionAt ?? null, at);
   const kind = attemptKind(input.outcome, q.timesSolved ?? 0);
@@ -99,33 +100,35 @@ export async function logAttempt(id: string, input: AttemptInput) {
   await q.save();
 
   await ActivityEvent.create({
-    questionId: q._id,
+    userId,
+    questionId: question._id,
     type: kind,
     at,
     confidence: input.confidence,
     minutes: input.minutes,
     onTime: state !== "overdue",
-    difficulty: q.difficulty,
+    difficulty: question.difficulty,
     backfill,
     prev,
   });
 
-  return { item: serializeQuestion(q.toObject()), kind };
+  return { item: serializeQuestion(question, q.toObject()), kind };
 }
 
-/** Removes the most recently logged attempt and restores the schedule it replaced. */
-export async function undoLastAttempt(id: string) {
-  const q = await Question.findById(id);
-  if (!q) throw new HttpError("Question not found", 404);
-  const last = await ActivityEvent.findOne({ questionId: q._id }).sort({ _id: -1 });
+/** Removes the user's most recently logged attempt on a question and restores the schedule it replaced. */
+export async function undoLastAttempt(userId: string, id: string) {
+  const question = await Question.findById(id).lean();
+  if (!question) throw new HttpError("Question not found", 404);
+  const last = await ActivityEvent.findOne({ userId, questionId: question._id }).sort({ _id: -1 });
   if (!last) throw new HttpError("Nothing to undo.", 400);
   if (!last.prev) throw new HttpError("This attempt predates undo support.", 400);
 
+  const q = await progressFor(userId, question._id);
   for (const k of SNAPSHOT_KEYS) {
     const v = last.prev[k];
     q.set(k, v === undefined ? null : v);
   }
   await q.save();
   await last.deleteOne();
-  return { item: serializeQuestion(q.toObject()) };
+  return { item: serializeQuestion(question, q.toObject()) };
 }

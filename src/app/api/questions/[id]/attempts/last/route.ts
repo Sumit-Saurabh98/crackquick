@@ -1,17 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { undoLastAttempt } from "@/lib/attempts";
-import { fail, notFoundUnlessValidId } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { checkId } from "@/lib/http";
+import { route } from "@/lib/viewer";
 
-/** Undo last log: removes the latest attempt and restores the previous schedule. */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const bad = notFoundUnlessValidId(id);
-    if (bad) return bad;
-    await dbConnect();
-    return NextResponse.json(await undoLastAttempt(id));
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+/** Undo last log: removes the viewer's latest attempt and restores their previous schedule. */
+export const DELETE = route<{ id: string }>(
+  async (_req, { viewer, params }) => {
+    checkId(params.id, "Question not found");
+    return NextResponse.json(await undoLastAttempt(viewer.id, params.id));
+  },
+  { errorStatus: 400 },
+);

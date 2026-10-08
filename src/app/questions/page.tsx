@@ -7,6 +7,7 @@ import { ErrorPanel } from "@/components/ErrorPanel";
 import { QuestionRow } from "@/components/QuestionRow";
 import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
+import { useCan } from "@/components/ViewerProvider";
 import { DIFFICULTIES } from "@/lib/constants";
 import type { Facets } from "@/lib/queries";
 import type { QuestionJSON } from "@/lib/serialize";
@@ -29,6 +30,7 @@ function QuestionsView() {
   const query = params.toString();
   const { data, error, reload } = useApi<Page>(`/api/questions?${query}`);
   const facets = useApi<Facets>("/api/meta").data;
+  const canEdit = useCan("catalog.edit");
   const [text, setText] = useState(params.get("q") ?? "");
   const [toast, setToast] = useState("");
   const clearToast = useCallback(() => setToast(""), []);
@@ -82,7 +84,7 @@ function QuestionsView() {
           <p className="text-sm text-muted">{data ? `${data.total} matching` : <Spinner size="sm" />}</p>
         </div>
         <Link href="/questions/new" className="btn-primary">
-          + Add question
+          {canEdit ? "+ Add question" : "+ Suggest a question"}
         </Link>
       </div>
 
@@ -135,7 +137,8 @@ function QuestionsView() {
           {(
             [
               ["starred", "★ Starred"],
-              ["archived", "Archived"],
+              ["archived", "Hidden by me"],
+              ...(canEdit ? ([["retired", "Retired"]] as const) : []),
             ] as const
           ).map(([k, label]) => (
             <button
@@ -171,7 +174,11 @@ function QuestionsView() {
         ))}
         {data && data.items.length === 0 ? (
           <p className="p-6 text-sm text-muted">
-            {active ? "Nothing matches these filters." : "No questions yet. Use + Add question to import from LeetCode / GFG."}
+            {active
+              ? "Nothing matches these filters."
+              : canEdit
+                ? "No questions yet. Use + Add question to import from LeetCode / GFG."
+                : "The catalog is empty. Use + Suggest a question to propose one."}
           </p>
         ) : null}
       </div>

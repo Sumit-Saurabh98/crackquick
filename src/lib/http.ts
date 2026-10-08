@@ -22,9 +22,8 @@ export function csv(v: unknown): string[] {
   return [];
 }
 
-export function notFoundUnlessValidId(id: string) {
-  if (!isValidObjectId(id)) {
-    return NextResponse.json({ error: "Question not found" }, { status: 404 });
-  }
-  return null;
+/** The id, or a 404 with `message` when it can't be a database id. */
+export function checkId(id: string, message = "Not found") {
+  if (!isValidObjectId(id)) throw Object.assign(new Error(message), { status: 404 });
+  return id;
 }

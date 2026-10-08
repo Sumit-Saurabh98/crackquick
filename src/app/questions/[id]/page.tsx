@@ -11,6 +11,7 @@ import { DifficultyPill, RevisionPill, StatusPill } from "@/components/Pills";
 import { QuestionForm } from "@/components/QuestionForm";
 import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
+import { useCan } from "@/components/ViewerProvider";
 import { send } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
 import type { AttemptJSON, QuestionJSON } from "@/lib/serialize";
@@ -21,9 +22,11 @@ const KIND_LABEL = { solved: "Solved", revised: "Revised", failed_recall: "Blank
 export default function QuestionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const canEdit = useCan("catalog.edit");
+  const canDelete = useCan("catalog.delete");
   const question = useApi<{ item: QuestionJSON }>(`/api/questions/${id}`);
   const history = useApi<{ items: AttemptJSON[] }>(`/api/questions/${id}/attempts`);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<"" | "edit" | "suggest-edit">("");
   const [logging, setLogging] = useState(false);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +54,7 @@ export default function QuestionDetailPage() {
   }
 
   async function remove() {
-    if (!confirm("Permanently delete this question AND its attempt history (XP, streak days)?\n\nUse Archive to hide it but keep history.")) return;
+    if (!confirm("Permanently delete this question from the catalog, with all progress and attempts on it?\n\nUse Retire to take it out of the catalog but keep everyone's history.")) return;
     setBusy(true);
     try {
       await send(`/api/questions/${id}`, "DELETE");
@@ -82,7 +85,8 @@ export default function QuestionDetailPage() {
             <DifficultyPill value={item.difficulty} />
             <StatusPill value={item.status} />
             <RevisionPill q={item} />
-            {item.archived ? <span className="pill bg-white/5 text-muted">archived</span> : null}
+            {item.retired ? <span className="pill bg-warn/10 text-warn">retired</span> : null}
+            {item.archived ? <span className="pill bg-white/5 text-muted">hidden</span> : null}
             {item.pattern ? (
               <Link href={`/questions?pattern=${encodeURIComponent(item.pattern)}`} className="pill bg-brass/15 text-brass2 normal-case">
                 {item.pattern}
@@ -218,9 +222,6 @@ export default function QuestionDetailPage() {
       </section>
 
       <section className="flex flex-wrap gap-2">
-        <button onClick={() => setEditing((v) => !v)} className="btn">
-          {editing ? "Close editor" : "Edit details"}
-        </button>
         <button
           disabled={busy}
           onClick={() => act(() => send(`/api/questions/${id}`, "PATCH", { isStarred: !item.isStarred }))}
@@ -228,34 +229,70 @@ export default function QuestionDetailPage() {
         >
           {item.isStarred ? "Unstar" : "Star"}
         </button>
+        <StatusControl status={item.status} busy={busy} onChange={(status) => act(() => send(`/api/questions/${id}`, "PATCH", { status }))} />
         <button
           disabled={busy}
           onClick={() =>
             act(
               () => send(`/api/questions/${id}`, "PATCH", { archived: !item.archived }),
-              item.archived ? "Restored" : "Archived: hidden from lists and queue",
+              item.archived ? "Back in your lists" : "Hidden from your lists and queue",
             )
           }
           className="btn"
+          title="Only for you; your history is kept"
         >
-          {item.archived ? "Unarchive" : "Archive"}
+          {item.archived ? "Unhide" : "Hide for me"}
         </button>
-        <button disabled={busy} onClick={remove} className="btn border-warn/40 text-warn">
-          Delete
-        </button>
+        {canEdit ? (
+          <>
+            <button onClick={() => setEditing((v) => (v ? "" : "edit"))} className="btn sm:ml-auto">
+              {editing ? "Close editor" : "Edit details"}
+            </button>
+            <button
+              disabled={busy}
+              onClick={() =>
+                act(
+                  () => send(`/api/questions/${id}`, "PATCH", { retired: !item.retired }),
+                  item.retired ? "Back in the catalog" : "Retired: gone from everyone's lists, history kept",
+                )
+              }
+              className="btn"
+            >
+              {item.retired ? "Restore to catalog" : "Retire"}
+            </button>
+            {canDelete ? (
+              <button disabled={busy} onClick={remove} className="btn border-warn/40 text-warn">
+                Delete
+              </button>
+            ) : null}
+          </>
+        ) : !item.retired ? (
+          <button onClick={() => setEditing((v) => (v ? "" : "suggest-edit"))} className="btn sm:ml-auto">
+            {editing ? "Close" : "Suggest an edit"}
+          </button>
+        ) : null}
       </section>
       {actionError ? <p className="text-sm text-warn">{actionError}</p> : null}
 
       {editing ? (
-        <QuestionForm
-          key={item.updatedAt}
-          initial={item}
-          onSaved={() => {
-            setEditing(false);
-            setToast("Saved");
-            refresh();
-          }}
-        />
+        <div className="grid gap-2">
+          {editing === "suggest-edit" ? (
+            <p className="text-sm text-muted">
+              Change anything that&apos;s wrong or missing (a video, a company, the pattern…). An admin or editor reviews it before it
+              applies for everyone.
+            </p>
+          ) : null}
+          <QuestionForm
+            key={item.updatedAt}
+            mode={editing}
+            initial={item}
+            onSaved={() => {
+              setToast(editing === "edit" ? "Saved" : "Sent for review. Track it under Submissions.");
+              setEditing("");
+              refresh();
+            }}
+          />
+        </div>
       ) : null}
 
       {logging ? (
@@ -271,5 +308,33 @@ export default function QuestionDetailPage() {
       ) : null}
       <Toast message={toast} onDone={clearToast} />
     </div>
+  );
+}
+
+/** Your own status. Done only comes from logging an attempt; leaving done clears your schedule. */
+function StatusControl({
+  status,
+  busy,
+  onChange,
+}: {
+  status: QuestionJSON["status"];
+  busy: boolean;
+  onChange: (status: "todo" | "in_progress") => void;
+}) {
+  if (status === "done") {
+    return (
+      <button
+        disabled={busy}
+        onClick={() => confirm("Reset to todo? This clears your revision schedule (attempt history is kept).") && onChange("todo")}
+        className="btn"
+      >
+        Reset to todo
+      </button>
+    );
+  }
+  return (
+    <button disabled={busy} onClick={() => onChange(status === "todo" ? "in_progress" : "todo")} className="btn">
+      {status === "todo" ? "Mark in progress" : "Back to todo"}
+    </button>
   );
 }

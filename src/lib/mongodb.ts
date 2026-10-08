@@ -1,6 +1,4 @@
 import mongoose from "mongoose";
-import { setTimezone } from "./dates";
-import { getSettings } from "@/models/Settings";
 
 export async function dbConnect() {
   const uri = process.env.MONGODB_URI;
@@ -29,7 +27,5 @@ export async function dbConnect() {
       );
     }
   }
-  // "Today" and due dates follow Settings → Timezone (default IST).
-  setTimezone((await getSettings()).timezone);
   return cached.conn;
 }

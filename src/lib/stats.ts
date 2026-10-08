@@ -12,9 +12,10 @@ import {
 } from "./dates";
 import { revisionState } from "./revision";
 import { serializeQuestion, type QuestionJSON } from "./serialize";
+import type { Viewer } from "./viewer";
 import { ActivityEvent } from "@/models/Event";
+import { Progress } from "@/models/Progress";
 import { Question } from "@/models/Question";
-import { getSettings } from "@/models/Settings";
 
 type Ev = {
   questionId: string;
@@ -103,16 +104,19 @@ function periodMetrics(events: Ev[], byId: Map<string, QuestionJSON>, range: { f
   };
 }
 
-export async function computeStats(period = "day") {
+/** The viewer's numbers: the whole catalog (minus what they hid) with their progress and attempts. */
+export async function computeStats(viewer: Viewer, period = "day") {
   const now = new Date();
-  const [questionDocs, eventDocs, settings] = await Promise.all([
+  const { settings } = viewer;
+  const [questionDocs, progressDocs, eventDocs] = await Promise.all([
     Question.find({}).lean(),
-    ActivityEvent.find({}).lean(),
-    getSettings(),
+    Progress.find({ userId: viewer.id }).lean(),
+    ActivityEvent.find({ userId: viewer.id }).lean(),
   ]);
-  const everything = questionDocs.map((d) => serializeQuestion(d as Record<string, unknown>));
+  const progress = new Map(progressDocs.map((p) => [String(p.questionId), p as Record<string, unknown>]));
+  const everything = questionDocs.map((d) => serializeQuestion(d as Record<string, unknown>, progress.get(String(d._id)) ?? null));
   const byId = new Map(everything.map((q) => [q._id, q]));
-  const questions = everything.filter((q) => !q.archived);
+  const questions = everything.filter((q) => !q.archived && !q.retired);
   const events = eventDocs.map((d) => toEvent(d as Record<string, unknown>));
 
   const state = new Map(questions.map((q) => [q._id, revisionState(q.nextRevisionAt, now)]));

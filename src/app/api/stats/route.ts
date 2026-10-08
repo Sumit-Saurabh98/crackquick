@@ -1,15 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { NextResponse } from "next/server";
 import { computeStats } from "@/lib/stats";
+import { route } from "@/lib/viewer";
 
-export async function GET(req: NextRequest) {
-  try {
-    await dbConnect();
-    const period = req.nextUrl.searchParams.get("period") || "day";
-    const stats = await computeStats(period);
-    return NextResponse.json(stats);
-  } catch (e) {
-    return fail(e);
-  }
-}
+export const GET = route(async (req, { viewer }) =>
+  NextResponse.json(await computeStats(viewer, req.nextUrl.searchParams.get("period") || "day")),
+);

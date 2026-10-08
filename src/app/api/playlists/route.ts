@@ -1,24 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { NextResponse } from "next/server";
 import { addPlaylist, listPlaylists } from "@/lib/playlists";
+import { route } from "@/lib/viewer";
 
-/** → { items: [{ id, name, url }] } */
-export async function GET() {
-  try {
-    await dbConnect();
-    return NextResponse.json({ items: await listPlaylists() });
-  } catch (e) {
-    return fail(e);
-  }
-}
+/** The viewer's playlists → { items: [{ id, name, url }] } */
+export const GET = route(async (_req, { viewer }) => NextResponse.json({ items: await listPlaylists(viewer.id) }));
 
 /** Add one. Body: { name, url } */
-export async function POST(req: NextRequest) {
-  try {
-    await dbConnect();
-    return NextResponse.json({ items: await addPlaylist(await req.json()) }, { status: 201 });
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+export const POST = route(
+  async (req, { viewer }) => NextResponse.json({ items: await addPlaylist(viewer.id, await req.json()) }, { status: 201 }),
+  { errorStatus: 400 },
+);

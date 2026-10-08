@@ -1,33 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fail, notFoundUnlessValidId } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
+import { NextResponse } from "next/server";
+import { checkId } from "@/lib/http";
 import { deleteOption, renameOption } from "@/lib/options";
+import { route } from "@/lib/viewer";
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-/** Rename: body { name }. Questions using the old name are updated too. */
-export async function PATCH(req: NextRequest, { params }: Ctx) {
-  try {
-    const { id } = await params;
-    const bad = notFoundUnlessValidId(id);
-    if (bad) return bad;
-    await dbConnect();
+/** Needs lists.manage. Rename: body { name }. Questions using the old name are updated too. */
+export const PATCH = route<P>(
+  async (req, { params }) => {
     const body = await req.json();
-    return NextResponse.json(await renameOption(id, body.name));
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+    return NextResponse.json(await renameOption(checkId(params.id, "Option not found."), body.name));
+  },
+  { permission: "lists.manage", errorStatus: 400 },
+);
 
-/** Delete: questions using it are left with that field empty. */
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
-  try {
-    const { id } = await params;
-    const bad = notFoundUnlessValidId(id);
-    if (bad) return bad;
-    await dbConnect();
-    return NextResponse.json(await deleteOption(id));
-  } catch (e) {
-    return fail(e);
-  }
-}
+/** Needs lists.manage. Delete: questions using it are left with that field empty. */
+export const DELETE = route<P>(
+  async (_req, { params }) => NextResponse.json(await deleteOption(checkId(params.id, "Option not found."))),
+  { permission: "lists.manage" },
+);

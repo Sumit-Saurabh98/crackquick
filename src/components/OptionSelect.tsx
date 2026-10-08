@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { OptionManager, OPTION_LABELS, type OptionChange } from "@/components/OptionManager";
+import { useCan } from "@/components/ViewerProvider";
 import { send } from "@/lib/api";
 import type { OptionJSON, OptionKind } from "@/lib/options";
 import { useApi } from "@/lib/useApi";
@@ -10,8 +11,8 @@ import { useApi } from "@/lib/useApi";
 const ADD_NEW = "__add_new__";
 
 /**
- * Dropdown of a managed list (platforms / patterns) with "+ Add new…" inline and a Manage dialog
- * for rename / delete.
+ * Dropdown of a managed list (platforms / patterns). List managers (lists.manage) also get "+ Add new…" inline and a
+ * Manage dialog for rename / delete.
  */
 export function OptionSelect({
   kind,
@@ -30,6 +31,7 @@ export function OptionSelect({
   const [managing, setManaging] = useState(false);
   const [error, setError] = useState("");
   const label = OPTION_LABELS[kind];
+  const canManage = useCan("lists.manage");
 
   const names = (data?.items ?? []).map((o) => o.name);
   // A value not in the list yet (e.g. detected from a pasted link) is still selectable; it's added on save.
@@ -91,11 +93,13 @@ export function OptionSelect({
                 {n}
               </option>
             ))}
-            <option value={ADD_NEW}>+ Add new {label.one}…</option>
+            {canManage ? <option value={ADD_NEW}>+ Add new {label.one}…</option> : null}
           </select>
-          <button type="button" onClick={() => setManaging(true)} className="btn btn-sm" title={`Rename or delete ${label.many.toLowerCase()}`}>
-            Manage
-          </button>
+          {canManage ? (
+            <button type="button" onClick={() => setManaging(true)} className="btn btn-sm" title={`Rename or delete ${label.many.toLowerCase()}`}>
+              Manage
+            </button>
+          ) : null}
         </div>
       )}
       {error ? <span className="text-xs text-warn">{error}</span> : null}

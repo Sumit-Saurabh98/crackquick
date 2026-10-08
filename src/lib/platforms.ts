@@ -135,7 +135,7 @@ function fromLeetcode(q: LcQuestion): FoundProblem {
   };
 }
 
-async function lookupLeetcode(input: string): Promise<LookupResult> {
+async function lookupLeetcode(input: string, max: number): Promise<LookupResult> {
   const errors: string[] = [];
   // Keep the user's order: each entry is a number, a slug, or a name to search.
   const entries: { kind: "id" | "slug" | "name"; value: string }[] = [];
@@ -144,7 +144,7 @@ async function lookupLeetcode(input: string): Promise<LookupResult> {
     const range = t.match(/^(\d+)-(\d+)$/);
     if (range) {
       const [a, b] = [Number(range[1]), Number(range[2])].sort((x, y) => x - y);
-      if (b - a >= MAX_ITEMS) errors.push(`Range ${t} is too big (max ${MAX_ITEMS}).`);
+      if (b - a >= max) errors.push(`Range ${t} is too big (max ${max}).`);
       else for (let n = a; n <= b; n++) entries.push({ kind: "id", value: String(n) });
     } else if (/^\d+$/.test(t)) entries.push({ kind: "id", value: String(Number(t)) });
     else if (/^https?:\/\//.test(t)) {
@@ -154,9 +154,7 @@ async function lookupLeetcode(input: string): Promise<LookupResult> {
     } else if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t)) entries.push({ kind: "slug", value: t });
     else entries.push({ kind: "name", value: t });
   }
-  if (entries.length > MAX_ITEMS) {
-    return { items: [], errors: [`Too many at once: max ${MAX_ITEMS} per lookup.`] };
-  }
+  if (entries.length > max) return { items: [], errors: [tooMany(max)] };
 
   const index = entries.some((e) => e.kind === "id") ? await leetcodeIndex() : null;
   for (const e of entries) {
@@ -228,10 +226,10 @@ async function gfgSearch(name: string) {
   return list.find((p) => p.problem_name.toLowerCase() === name.toLowerCase()) ?? list[0] ?? null;
 }
 
-async function lookupGfg(input: string): Promise<LookupResult> {
+async function lookupGfg(input: string, max: number): Promise<LookupResult> {
   const errors: string[] = [];
   const list = tokens(input);
-  if (list.length > MAX_ITEMS) return { items: [], errors: [`Too many at once: max ${MAX_ITEMS} per lookup.`] };
+  if (list.length > max) return { items: [], errors: [tooMany(max)] };
 
   const items: FoundProblem[] = [];
   // Small batches keep GFG happy and still finish 100 lookups in a few seconds.
@@ -260,7 +258,12 @@ async function lookupGfg(input: string): Promise<LookupResult> {
   return { items: dedupe(items), errors };
 }
 
-export async function lookupProblems(platform: PlatformKey, input: string): Promise<LookupResult> {
+function tooMany(max: number) {
+  return max === 1 ? "One problem at a time: enter a single number, link or name." : `Too many at once: max ${max} per lookup.`;
+}
+
+/** `max` caps how many problems one lookup may fetch (default 100). */
+export async function lookupProblems(platform: PlatformKey, input: string, max = MAX_ITEMS): Promise<LookupResult> {
   if (!input.trim()) return { items: [], errors: ["Enter at least one number, link or name."] };
-  return platform === "gfg" ? lookupGfg(input) : lookupLeetcode(input);
+  return platform === "gfg" ? lookupGfg(input, max) : lookupLeetcode(input, max);
 }

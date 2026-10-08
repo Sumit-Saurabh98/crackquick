@@ -8,6 +8,7 @@ import { ErrorPanel } from "@/components/ErrorPanel";
 import { OptionManager } from "@/components/OptionManager";
 import { PlaylistSettings } from "@/components/PlaylistSettings";
 import { Spinner } from "@/components/Spinner";
+import { useCan } from "@/components/ViewerProvider";
 import { send } from "@/lib/api";
 import { DEFAULT_REVISION_INTERVALS, DEFAULT_TIMEZONE } from "@/lib/constants";
 import { dateKey, setTimezone, timezoneLabel } from "@/lib/dates";
@@ -15,20 +16,37 @@ import { useApi } from "@/lib/useApi";
 
 export default function SettingsPage() {
   const { data, error } = useApi<SettingsJSON>("/api/settings");
+  const canManageLists = useCan("lists.manage");
+  const canEditCatalog = useCan("catalog.edit");
   if (error && !data) return <ErrorPanel error={error} />;
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-6">
       <h1 className="display text-3xl">Settings</h1>
       {data ? <SettingsForm initial={data} /> : <Spinner className="min-h-[30vh]" />}
       <section className="card grid gap-4 p-5">
-        <h2 className="display text-xl">Platforms</h2>
-        <OptionManager kind="platform" />
+        <h2 className="display text-xl">Your data</h2>
+        <Row title="Export backup" hint="Your progress, notes, attempts and settings, with the catalog, as one JSON file.">
+          <a href="/api/export" download className="btn">
+            Download
+          </a>
+        </Row>
       </section>
-      <section className="card grid gap-4 p-5">
-        <h2 className="display text-xl">Patterns</h2>
-        <OptionManager kind="pattern" />
-      </section>
-      <LibraryTools />
+      {canManageLists || canEditCatalog ? <p className="eyebrow -mb-3">Catalog · shared by everyone</p> : null}
+      {canManageLists ? (
+        <>
+          <section className="card grid gap-4 p-5">
+            <h2 className="display text-xl">Platforms</h2>
+            <OptionManager kind="platform" />
+          </section>
+          <section className="card grid gap-4 p-5">
+            <h2 className="display text-xl">Patterns</h2>
+            <OptionManager kind="pattern" />
+          </section>
+        </>
+      ) : null}
+      {canEditCatalog ? (
+        <CatalogTools />
+      ) : null}
       {data ? (
         <section className="card grid gap-4 p-5">
           <div>
@@ -119,7 +137,7 @@ function SettingsForm({ initial }: { initial: SettingsJSON }) {
   );
 }
 
-function LibraryTools() {
+function CatalogTools() {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -148,7 +166,7 @@ function LibraryTools() {
 
   return (
     <section className="card grid gap-4 p-5">
-      <h2 className="display text-xl">Library</h2>
+      <h2 className="display text-xl">Catalog</h2>
       <div className="grid gap-3">
         <Row title="Import from LeetCode / GFG" hint="By problem number, range, link or name, with difficulty and topics filled in.">
           <Link href="/questions/new" className="btn">
@@ -157,7 +175,7 @@ function LibraryTools() {
         </Row>
         <Row
           title="Import JSON"
-          hint="An array of questions ({ title, platformUrl, difficulty, topics, … }) or a CrackQuick export. Imports questions only, not history."
+          hint="An array of questions ({ title, platformUrl, difficulty, topics, … }) or a CrackQuick export. Adds catalog questions only, not anyone's progress."
         >
           <label className={`btn cursor-pointer ${busy ? "pointer-events-none opacity-50" : ""}`}>
             Choose file
@@ -186,11 +204,6 @@ function LibraryTools() {
           >
             Fill
           </button>
-        </Row>
-        <Row title="Export backup" hint="Everything (questions, attempts, settings) as one JSON file.">
-          <a href="/api/export" download className="btn">
-            Download
-          </a>
         </Row>
       </div>
       {status ? <p className="text-sm text-brass2">{status}</p> : null}

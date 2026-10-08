@@ -21,35 +21,35 @@ function checkId(id: string) {
   return new Types.ObjectId(id);
 }
 
-export async function listPlaylists(): Promise<Playlist[]> {
-  return (await getSettings()).playlists;
+export async function listPlaylists(userId: string): Promise<Playlist[]> {
+  return (await getSettings(userId)).playlists;
 }
 
-export async function addPlaylist(raw: unknown) {
+export async function addPlaylist(userId: string, raw: unknown) {
   const p = validated(raw);
-  await getSettings(); // ensures the settings document exists
-  await Settings.updateOne({ key: "main" }, { $push: { playlists: { _id: new Types.ObjectId(), ...p } } });
-  return listPlaylists();
+  await getSettings(userId); // ensures the settings document exists
+  await Settings.updateOne({ userId }, { $push: { playlists: { _id: new Types.ObjectId(), ...p } } });
+  return listPlaylists(userId);
 }
 
-export async function updatePlaylist(id: string, raw: unknown) {
+export async function updatePlaylist(userId: string, id: string, raw: unknown) {
   const p = validated(raw);
   const r = await Settings.updateOne(
-    { key: "main", "playlists._id": checkId(id) },
+    { userId, "playlists._id": checkId(id) },
     { $set: { "playlists.$.name": p.name, "playlists.$.url": p.url } },
   );
   if (!r.matchedCount) throw new HttpError("Playlist not found (deleted elsewhere?). Reload.", 404);
-  return listPlaylists();
+  return listPlaylists(userId);
 }
 
-export async function deletePlaylist(id: string) {
-  await Settings.updateOne({ key: "main" }, { $pull: { playlists: { _id: checkId(id) } } });
-  return listPlaylists();
+export async function deletePlaylist(userId: string, id: string) {
+  await Settings.updateOne({ userId }, { $pull: { playlists: { _id: checkId(id) } } });
+  return listPlaylists(userId);
 }
 
 /** Swaps the playlist with its neighbour; only applies if the list hasn't changed meanwhile. */
-export async function movePlaylist(id: string, dir: -1 | 1) {
-  const doc = await Settings.findOne({ key: "main" }, { playlists: 1 }).lean<{ playlists?: { _id: Types.ObjectId }[] }>();
+export async function movePlaylist(userId: string, id: string, dir: -1 | 1) {
+  const doc = await Settings.findOne({ userId }, { playlists: 1 }).lean<{ playlists?: { _id: Types.ObjectId }[] }>();
   const list = doc?.playlists ?? [];
   const i = list.findIndex((p) => String(p._id) === id);
   if (i < 0) throw new HttpError("Playlist not found (deleted elsewhere?). Reload.", 404);
@@ -57,7 +57,7 @@ export async function movePlaylist(id: string, dir: -1 | 1) {
   if (j < 0 || j >= list.length) return toPlaylists(list);
   const next = [...list];
   [next[i], next[j]] = [next[j], next[i]];
-  const r = await Settings.updateOne({ key: "main", playlists: list }, { $set: { playlists: next } });
+  const r = await Settings.updateOne({ userId, playlists: list }, { $set: { playlists: next } });
   if (!r.matchedCount) throw new HttpError("Playlists changed meanwhile. Try again.", 409);
-  return listPlaylists();
+  return listPlaylists(userId);
 }

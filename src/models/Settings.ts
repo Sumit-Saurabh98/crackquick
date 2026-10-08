@@ -5,10 +5,10 @@ import { isValidTimezone } from "@/lib/dates";
 import { normalizeIntervals } from "@/lib/revision";
 import type { Playlist } from "@/lib/youtube";
 
-/** Singleton document (key = "main"). */
+/** One document per user. */
 const SettingsSchema = new Schema(
   {
-    key: { type: String, default: "main", unique: true },
+    userId: { type: String, required: true, unique: true },
     interviewDate: { type: Date, default: null },
     intervals: { type: [Number], default: DEFAULT_REVISION_INTERVALS },
     timezone: { type: String, default: DEFAULT_TIMEZONE },
@@ -37,16 +37,16 @@ export function toPlaylists(raw: unknown): Playlist[] {
   }));
 }
 
-export async function getSettings(): Promise<SettingsDoc> {
+export async function getSettings(userId: string): Promise<SettingsDoc> {
   const doc = await Settings.findOneAndUpdate(
-    { key: "main" },
-    { $setOnInsert: { key: "main" } },
+    { userId },
+    { $setOnInsert: { userId } },
     { upsert: true, returnDocument: "after" },
   ).lean<Partial<Omit<SettingsDoc, "playlists">> & { playlists?: StoredPlaylist[] }>();
   // Older entries were saved without ids; give them one so they can be edited individually.
   if (doc?.playlists?.some((p) => !p._id)) {
     const withIds = doc.playlists.map((p) => ({ _id: p._id ?? new Types.ObjectId(), name: p.name, url: p.url }));
-    await Settings.updateOne({ key: "main" }, { $set: { playlists: withIds } });
+    await Settings.updateOne({ userId }, { $set: { playlists: withIds } });
     doc.playlists = withIds;
   }
   return {

@@ -13,27 +13,43 @@ import type { QuestionJSON } from "@/lib/serialize";
 import { useApi } from "@/lib/useApi";
 
 
-const EMPTY = {
-  title: "",
-  platform: "",
-  platformUrl: "",
-  externalId: "",
-  notes: "",
-  difficulty: "Medium" as QuestionJSON["difficulty"],
-  status: "todo" as QuestionJSON["status"],
-  pattern: "",
-  isStarred: false,
+export type QuestionFormMode = "create" | "edit" | "suggest-new" | "suggest-edit";
+
+const SUBMIT_LABEL: Record<QuestionFormMode, string> = {
+  create: "Create question",
+  edit: "Save changes",
+  "suggest-new": "Send for review",
+  "suggest-edit": "Send for review",
 };
 
+/**
+ * Catalog fields of a question.
+ * - `create` / `edit` (admin): writes the catalog directly. Create can also star it, start it,
+ *   or record an earlier solve for the admin's own progress.
+ * - `suggest-new` / `suggest-edit` (users): sends a submission for an admin to approve.
+ */
 export function QuestionForm({
+  mode,
   initial,
   onSaved,
 }: {
+  mode: QuestionFormMode;
   initial?: QuestionJSON;
-  onSaved: (item: QuestionJSON) => void;
+  /** The saved question for create / edit; nothing for suggestions. */
+  onSaved: (item?: QuestionJSON) => void;
 }) {
   const facets = useApi<Facets>("/api/meta").data;
-  const [form, setForm] = useState(() => ({ ...EMPTY, ...(initial ?? {}) }));
+  const [form, setForm] = useState(() => ({
+    title: initial?.title ?? "",
+    platform: initial?.platform ?? "",
+    platformUrl: initial?.platformUrl ?? "",
+    externalId: initial?.externalId ?? "",
+    difficulty: initial?.difficulty ?? ("Medium" as QuestionJSON["difficulty"]),
+    pattern: initial?.pattern ?? "",
+    status: "todo" as "todo" | "in_progress",
+    isStarred: false,
+  }));
+  const [note, setNote] = useState("");
   const [topics, setTopics] = useState((initial?.topics ?? []).join(", "));
   const [companies, setCompanies] = useState((initial?.companies ?? []).join(", "));
   const [videos, setVideos] = useState(() => (initial?.videoUrls.length ? initial.videoUrls : [""]));
@@ -45,7 +61,7 @@ export function QuestionForm({
   const [fetchState, setFetchState] = useState<{ text: string; existingId?: string | null }>({ text: "" });
   const lookupSeq = useRef(0);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const editing = Boolean(initial);
+  const suggesting = mode === "suggest-new" || mode === "suggest-edit";
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -62,7 +78,8 @@ export function QuestionForm({
       title: f.title || parsed.title,
     }));
     if (lookupTimer.current) clearTimeout(lookupTimer.current);
-    if (!editing && parsed.slug && (parsed.platform === "LeetCode" || parsed.platform === "GeeksforGeeks")) {
+    // Fill details from LeetCode / GFG when adding or suggesting (not when editing an existing one).
+    if ((mode === "create" || mode === "suggest-new") && parsed.slug && (parsed.platform === "LeetCode" || parsed.platform === "GeeksforGeeks")) {
       const key = parsed.platform === "LeetCode" ? "leetcode" : "gfg";
       // Debounced so typing a link doesn't fire a lookup per keystroke.
       lookupTimer.current = setTimeout(() => void autofill(url, key, parsed.title), 500);
@@ -110,23 +127,30 @@ export function QuestionForm({
     }
     setSaving(true);
     setError("");
-    const payload: Record<string, unknown> = { ...form, topics, companies, videoUrls: videos };
-    if (editing && initial?.status === form.status) delete payload.status;
-    if (!editing && solvedBefore) {
-      payload.backfill = { solvedAt: solvedOn, confidence: solvedConf };
-    }
+    const { status, isStarred, ...catalog } = form;
+    const payload: Record<string, unknown> = { ...catalog, topics, companies, videoUrls: videos };
     try {
-      const { item } = editing
-        ? await send<{ item: QuestionJSON }>(`/api/questions/${initial!._id}`, "PATCH", payload)
-        : await send<{ item: QuestionJSON }>("/api/questions", "POST", payload);
-      onSaved(item);
+      if (mode === "create") {
+        if (solvedBefore) payload.backfill = { solvedAt: solvedOn, confidence: solvedConf };
+        const { item } = await send<{ item: QuestionJSON }>("/api/questions", "POST", { ...payload, status, isStarred });
+        onSaved(item);
+      } else if (mode === "edit") {
+        const { item } = await send<{ item: QuestionJSON }>(`/api/questions/${initial!._id}`, "PATCH", payload);
+        onSaved(item);
+      } else {
+        await send("/api/submissions", "POST", {
+          ...payload,
+          kind: mode === "suggest-edit" ? "edit" : "new",
+          questionId: initial?._id,
+          note,
+        });
+        onSaved();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
       setSaving(false);
     }
   }
-
-  const resettingDone = editing && initial?.status === "done" && form.status !== "done";
 
   return (
     <form onSubmit={onSubmit} className="card grid gap-4 p-5">
@@ -146,7 +170,7 @@ export function QuestionForm({
               <>
                 {" "}
                 <Link href={`/questions/${fetchState.existingId}`} className="text-warn underline">
-                  Already in your library
+                  Already in the catalog
                 </Link>
               </>
             ) : null}
@@ -180,25 +204,21 @@ export function QuestionForm({
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
-          Status
-          <select
-            value={form.status}
-            onChange={(e) => set("status", e.target.value as QuestionJSON["status"])}
-            className="field"
-          >
-            <option value="todo">todo</option>
-            <option value="in_progress">in progress</option>
-            {initial?.status === "done" ? <option value="done">done</option> : null}
-          </select>
-        </label>
+        {mode === "create" ? (
+          <label className="grid gap-1 text-sm">
+            Your status
+            <select
+              value={form.status}
+              onChange={(e) => set("status", e.target.value as "todo" | "in_progress")}
+              className="field"
+            >
+              <option value="todo">todo</option>
+              <option value="in_progress">in progress</option>
+            </select>
+          </label>
+        ) : null}
       </div>
-      {resettingDone ? (
-        <p className="rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn">
-          Resetting a done question clears its revision schedule. Attempt history is kept.
-        </p>
-      ) : null}
-      {!editing ? (
+      {mode === "create" ? (
         <p className="-mt-2 text-xs text-muted">To mark it done, log an attempt (or tick “already solved” below).</p>
       ) : null}
       <div className="grid gap-1 text-sm">
@@ -237,21 +257,20 @@ export function QuestionForm({
         Companies <span className="text-xs text-muted">comma separated</span>
         <input value={companies} onChange={(e) => setCompanies(e.target.value)} className="field" placeholder="Google, Amazon" />
       </label>
-      <label className="grid gap-1 text-sm">
-        Notes <span className="text-xs text-muted">Markdown: approach, pitfalls, complexity, code</span>
-        <textarea
-          rows={8}
-          value={form.notes}
-          onChange={(e) => set("notes", e.target.value)}
-          className="field font-mono text-[13px]"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={form.isStarred} onChange={(e) => set("isStarred", e.target.checked)} />
-        Star this (weak / must-revise)
-      </label>
+      {suggesting ? (
+        <label className="grid gap-1 text-sm">
+          Note for the admin <span className="text-xs text-muted">optional: why this change, where it&apos;s from</span>
+          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="field" />
+        </label>
+      ) : null}
+      {mode === "create" ? (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={form.isStarred} onChange={(e) => set("isStarred", e.target.checked)} />
+          Star this (weak / must-revise)
+        </label>
+      ) : null}
 
-      {!editing ? (
+      {mode === "create" ? (
         <fieldset className="grid gap-3 rounded-xl border border-line p-3">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={solvedBefore} onChange={(e) => setSolvedBefore(e.target.checked)} />
@@ -284,7 +303,7 @@ export function QuestionForm({
       {error ? <p className="rounded-lg bg-warn/15 px-3 py-2 text-sm text-warn">{error}</p> : null}
       <div className="flex justify-end">
         <button disabled={saving} className="btn-primary">
-          {saving ? "Saving…" : editing ? "Save changes" : "Create question"}
+          {saving ? "Saving…" : SUBMIT_LABEL[mode]}
         </button>
       </div>
     </form>

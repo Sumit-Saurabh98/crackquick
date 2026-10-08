@@ -20,7 +20,10 @@ export type QuestionJSON = {
   totalMinutes: number;
   pattern: string;
   isStarred: boolean;
+  /** Hidden by this user. */
   archived: boolean;
+  /** Taken out of the catalog by an admin. */
+  retired: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -35,13 +38,38 @@ export function videoLinks(raw: Record<string, unknown>): string[] {
   return [...new Set(all)];
 }
 
+const PROGRESS_KEYS = [
+  "status",
+  "timesSolved",
+  "lapses",
+  "lastSolvedAt",
+  "nextRevisionAt",
+  "revisionStage",
+  "confidence",
+  "timeSpentMinutes",
+  "totalMinutes",
+  "notes",
+  "isStarred",
+  "archived",
+] as const;
+
+/** The progress fields only (no ids or timestamps), so they don't overwrite the question's. */
+function pickProgress(progress: Record<string, unknown> | null) {
+  return Object.fromEntries(PROGRESS_KEYS.map((k) => [k, progress?.[k]]));
+}
+
 function iso(v: unknown): string | null {
   if (!v) return null;
   const d = v instanceof Date ? v : new Date(String(v));
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export function serializeQuestion(doc: Record<string, unknown>): QuestionJSON {
+/**
+ * A catalog question merged with one user's progress on it. Pass the progress separately, or
+ * leave it out when `doc` already carries the merged fields (as list queries return them).
+ */
+export function serializeQuestion(question: Record<string, unknown>, progress?: Record<string, unknown> | null): QuestionJSON {
+  const doc = progress === undefined ? question : { ...question, ...pickProgress(progress) };
   return {
     _id: String(doc._id),
     title: String(doc.title ?? ""),
@@ -65,6 +93,7 @@ export function serializeQuestion(doc: Record<string, unknown>): QuestionJSON {
     pattern: String(doc.pattern ?? ""),
     isStarred: Boolean(doc.isStarred),
     archived: Boolean(doc.archived),
+    retired: Boolean(doc.retired),
     createdAt: iso(doc.createdAt) ?? new Date().toISOString(),
     updatedAt: iso(doc.updatedAt) ?? new Date().toISOString(),
   };

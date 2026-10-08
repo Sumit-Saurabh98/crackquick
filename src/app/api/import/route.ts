@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { DIFFICULTIES } from "@/lib/constants";
 import { csv, fail } from "@/lib/http";
-import { dbConnect } from "@/lib/mongodb";
 import { canonicalNames } from "@/lib/options";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
 import { videoLinks } from "@/lib/serialize";
+import { route } from "@/lib/viewer";
 import { Question } from "@/models/Question";
 
 type Incoming = Record<string, unknown>;
@@ -21,23 +21,19 @@ function normalize(raw: Incoming, pattern: string) {
     platformUrl: raw.platformUrl ? canonicalProblemUrl(String(raw.platformUrl)) : "",
     externalId: String(raw.externalId ?? ""),
     videoUrls: videoLinks(raw),
-    notes: String(raw.notes ?? ""),
     topics: csv(raw.topics),
     companies: csv(raw.companies),
     difficulty,
     pattern: pattern || String(raw.pattern ?? ""),
-    isStarred: Boolean(raw.isStarred),
-    status: "todo",
   };
 }
 
 /**
- * Body: `{ questions: [...], pattern? }` (an exported file's `questions` works too, or a bare array).
- * Imports question definitions only (no history); skips duplicates by platform link, else title.
+ * Needs catalog.edit. Body: `{ questions: [...], pattern? }` (an exported file's `questions` works too, or a bare array).
+ * Adds catalog questions only (no one's progress or history); skips duplicates by platform link, else title.
  */
-export async function POST(req: NextRequest) {
-  try {
-    await dbConnect();
+export const POST = route(
+  async (req, { viewer }) => {
     const body = await req.json();
     const rows: Incoming[] | null = Array.isArray(body) ? body : Array.isArray(body.questions) ? body.questions : null;
     if (!rows) return fail(new Error("Expected { questions: [...] }."), 400);
@@ -75,9 +71,8 @@ export async function POST(req: NextRequest) {
       q.platform = platformName(q.platform);
       q.pattern = patternName(q.pattern);
     }
-    const created = fresh.length ? await Question.insertMany(fresh) : [];
+    const created = fresh.length ? await Question.insertMany(fresh.map((q) => ({ ...q, createdBy: viewer.id }))) : [];
     return NextResponse.json({ imported: created.length, skipped });
-  } catch (e) {
-    return fail(e, 400);
-  }
-}
+  },
+  { permission: "catalog.edit", errorStatus: 400 },
+);
