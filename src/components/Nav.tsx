@@ -19,6 +19,7 @@ const links: { href: string; label: string; show?: (has: (p: Permission) => bool
   { href: "/users", label: "Users", show: (has) => has("users.manage") },
   // Learners who also edit reach it from question pages; keeps their nav short.
   { href: "/audit", label: "Changes", show: (has) => has("catalog.edit") && !has("practice.track") },
+  { href: "/announcements", label: "Announcements", show: (has) => has("announcements.manage") },
   { href: "/settings", label: "Settings" },
 ];
 
