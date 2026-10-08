@@ -1,5 +1,5 @@
 import { DEFAULT_REVISION_INTERVALS } from "./constants";
-import { addDays, daysBetweenYmd, startOfToday, zonedYmd } from "./dates";
+import { addDays, startOfToday } from "./dates";
 
 /** What the user reports. The stored event kind is derived from this. */
 export type Outcome = "recalled" | "blanked";
@@ -57,9 +57,4 @@ export function revisionState(nextRevisionAt: string | Date | null, now = new Da
   if (due < today.getTime()) return "overdue";
   if (due < addDays(today, 1).getTime()) return "due";
   return "upcoming";
-}
-
-export function daysOverdue(nextRevisionAt: string | Date | null, now = new Date()) {
-  if (!nextRevisionAt) return 0;
-  return Math.max(0, daysBetweenYmd(zonedYmd(new Date(nextRevisionAt)), zonedYmd(now)));
 }

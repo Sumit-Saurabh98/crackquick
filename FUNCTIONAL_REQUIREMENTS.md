@@ -157,7 +157,6 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 - Everyone: interview date, revision intervals, timezone (default IST), music playlists; **Export** their backup (catalog + their progress, notes, attempts, settings).
 - With `lists.manage`: Platforms and Patterns lists (add / rename / delete). With `catalog.edit`: Import JSON (catalog questions only), Fill missing company tags.
 - `npm run set-role -- <email> <user|editor|admin>`: sets a role (used once for the first admin); with no arguments lists accounts and roles.
-- `npm run migrate-accounts -- --owner <email>` (dry run) / `… --yes`: one-time move of pre-accounts data (progress, notes, attempts, settings, playlists) to that account, creating it if needed; backs up to `backups/` first.
 - `npm run reset-db` (dry run) / `npm run reset-db -- --yes`: backs up to `backups/` then deletes all questions, progress, history and submissions (accounts and settings kept).
 
 ## 5a. Music player

@@ -9,7 +9,6 @@
     "lint": "eslint",
     "update:companies": "node scripts/build-leetcode-companies.mjs",
     "reset-db": "node scripts/reset-db.mjs",
-    "migrate-accounts": "node scripts/migrate-to-accounts.mjs",
     "set-role": "node scripts/set-role.mjs"
   },
   "dependencies": {

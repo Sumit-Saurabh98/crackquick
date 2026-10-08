@@ -23,7 +23,6 @@ DSA interview tracker with spaced revision (Next.js 16 + MongoDB). Shared questi
 ## Scripts
 
 - `npm run set-role -- you@example.com admin`: sets a role (`user`, `editor`, `admin`); with no arguments, lists accounts.
-- `npm run migrate-accounts -- --owner you@example.com`: one-time move of data from before accounts into that account (dry run; add `--yes` to back up and apply).
 - `npm run reset-db`: shows what's in the database. `npm run reset-db -- --yes` backs everything up to `backups/` and deletes all questions, progress, history and submissions (accounts and settings kept).
 - `npm run update:companies`: refreshes LeetCode company tags from the community dataset into `src/data/leetcode-companies.json`.
 

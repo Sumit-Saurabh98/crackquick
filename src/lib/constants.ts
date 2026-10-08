@@ -1,5 +1,4 @@
 export const DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
-export const STATUSES = ["todo", "in_progress", "done"] as const;
 
 /** Default timezone for "today", due dates and all displayed times (India Standard Time). Editable in Settings. */
 export const DEFAULT_TIMEZONE = "Asia/Kolkata";
