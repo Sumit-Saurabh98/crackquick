@@ -173,6 +173,13 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 - **Audit log** (`catalog.edit`): every catalog write is recorded with who, when, how (by hand, import, approved suggestion, bulk action, company backfill, revert) and each field's old → new value: create, edit, retire, restore, delete. Shown per question (“Changes” on the question page) and as a feed (**Changes** in the admin nav, `/audit`, 50 per page). **Revert** undoes an edit / retire / restore once, only if those fields haven't changed again since (otherwise the later change must be reverted first); the revert is itself recorded.
 - **Bulk actions** (Questions list, `catalog.edit`): tick rows, “Select page”, or “Select all N matching” (every question the current filters match, resolved on the server). Actions: set pattern (or clear it), set difficulty, add / remove topic, add / remove company (case-insensitive, no duplicates), retire, restore. Asks for confirmation with the exact count; up to 5,000 at once; each changed question gets its own audit entry under one batch.
 
+## 5c. Moderation
+
+- **Suspend** (Users page, `users.manage`; optional reason): the account is signed out everywhere at once, can't sign in by any method (“This account is suspended.”), gets 403 on every API call and sees an “Account suspended” page. Its pending suggestions are hidden from the review queue and dashboard. Data is kept; **Restore** undoes it all. You can't suspend yourself or the last active admin (the last-admin rule for role changes also ignores suspended admins).
+- **Rate limits** (per user, fixed windows, counted in the database so they hold across server instances): LeetCode / GFG lookups 30 an hour; suggestions (new or edit) 20 a day, which stops withdraw-and-resubmit loops; at most 5 pending edit suggestions (and 1 pending new question, §2a). Editors and admins aren't limited on lookups or suggestions. Over the limit → 429 with when to try again. Sign-in (5 tries a minute) and sign-up (5 an hour) are limited per IP by Better Auth, in every environment. **Rate limits** on the Users page lists the last 7 days per user and action: requests, busiest window against the limit, and refusals, refusals first.
+- **Saved rejection reasons** (`submissions.review`): one-click “Reject as: …” chips on each pending suggestion; a typed note is added after the reason. The list (defaults: Already in the catalog, Premium-only problem, Not a DSA problem, Link doesn't work, Not enough detail) is edited in Settings → Rejection reasons: add, move up, remove; up to 20.
+- **Duplicate finder** (`/duplicates`, “Find duplicates” on the catalog list, a dashboard tile; `catalog.edit`): pairs of live questions with the same title ignoring case, punctuation and leading numbers, the same title with different spacing, a one-letter typo in up to two words in the same place, or the same problem link. Words are compared in order, so “Directed” / “Undirected”, “Queue using Stacks” / “Stack using Queues” and numbered variants (“House Robber II”) don't match. Each side shows platform, learners, attempts, videos and companies. **Not duplicates** hides the pair for good. **Keep this one** (`catalog.delete` too) merges the other into it: every learner's progress and attempts move over (a learner with progress on both gets one record: the more recently solved schedule, the better status, added counts, both notes, starred if either), its videos / topics / companies are added, pending edit suggestions on it are closed, and it's retired with `mergedInto` set; both changes go in the audit log as “via duplicate merge”.
+
 ## 6. Non-functional
 
 - Secrets (`MONGODB_URI`, `BETTER_AUTH_SECRET`, OAuth keys) only in `.env.local` (git-ignored); `.env.example` lists them.
@@ -187,18 +194,15 @@ Gamification, leaderboards, email verification / password reset (needs an email 
 
 ## 8. Planned admin features (not built yet)
 
-Proposals, not current behaviour (except 8.1, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
+Proposals, not current behaviour (except 8.1 and 8.2, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
 
 ### 8.1 Highest value (P1): done
 
 Built; see §5b (admin dashboard, per-question insight, audit log, bulk actions).
 
-### 8.2 Moderation and abuse protection (P2)
+### 8.2 Moderation and abuse protection (P2): done
 
-5. **Suspend a user**: blocks sign-in and API access without deleting their data; their pending submissions are hidden from the queue. Reversible. The last admin can't be suspended. *Permission*: `users.manage`.
-6. **Rate limits with visibility**: per-user caps on lookups (e.g. 30/hour) and edit suggestions (e.g. 5 pending), Better Auth's sign-in / sign-up rate limit on in every environment, and an admin view of who is hitting the limits. *Permission*: `users.manage` to view.
-7. **Saved rejection reasons**: one-click reasons when rejecting a submission (“Duplicate”, “Premium-only”, “Not DSA”, …), editable list, still with optional free text. *Permission*: `submissions.review`.
-8. **Duplicate finder**: flags catalog questions with near-identical titles or the same problem on different platforms (e.g. a GFG copy of a LeetCode problem), with Merge (keep one, move everyone's progress and attempts onto it, retire the other) or Dismiss. *Permission*: `catalog.edit`; merge also `catalog.delete`.
+Built; see §5c (suspension, rate limits, saved rejection reasons, duplicate finder).
 
 ### 8.3 Catalog quality (P2)
 

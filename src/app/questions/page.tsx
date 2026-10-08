@@ -89,9 +89,16 @@ function QuestionsView() {
           <h1 className="display text-3xl">Questions</h1>
           <p className="text-sm text-muted">{data ? `${data.total} matching` : <Spinner size="sm" />}</p>
         </div>
-        <Link href="/questions/new" className="btn-primary">
-          {canEdit ? "+ Add question" : "+ Suggest a question"}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {canEdit ? (
+            <Link href="/duplicates" className="btn">
+              Find duplicates
+            </Link>
+          ) : null}
+          <Link href="/questions/new" className="btn-primary">
+            {canEdit ? "+ Add question" : "+ Suggest a question"}
+          </Link>
+        </div>
       </div>
 
       <div className="card grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">

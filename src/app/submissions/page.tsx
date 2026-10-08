@@ -42,6 +42,7 @@ function SubmissionsView() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("pending");
   const query = isReviewer ? TABS.find((t) => t.id === tab)!.query : "";
   const { data, error, reload } = useApi<{ items: SubmissionJSON[]; pending: number }>(`/api/submissions?${query}`);
+  const reasons = useApi<{ items: string[] }>(isReviewer ? "/api/reject-reasons" : null).data?.items ?? [];
   const [toast, setToast] = useState("");
   const clearToast = useCallback(() => setToast(""), []);
 
@@ -90,6 +91,7 @@ function SubmissionsView() {
           key={s._id}
           s={s}
           canReview={isReviewer && s.status === "pending"}
+          reasons={reasons}
           onDone={(msg) => {
             setToast(msg);
             reload();
@@ -101,7 +103,18 @@ function SubmissionsView() {
   );
 }
 
-function SubmissionCard({ s, canReview, onDone }: { s: SubmissionJSON; canReview: boolean; onDone: (msg: string) => void }) {
+function SubmissionCard({
+  s,
+  canReview,
+  reasons,
+  onDone,
+}: {
+  s: SubmissionJSON;
+  canReview: boolean;
+  /** Saved one-click rejection reasons (Settings). */
+  reasons: string[];
+  onDone: (msg: string) => void;
+}) {
   const [reviewNote, setReviewNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -183,10 +196,36 @@ function SubmissionCard({ s, canReview, onDone }: { s: SubmissionJSON; canReview
 
       {canReview ? (
         <div className="grid gap-2 border-t border-line pt-3">
+          {reasons.length ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted">Reject as:</span>
+              {reasons.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(
+                      () =>
+                        send(`/api/submissions/${s._id}`, "PATCH", {
+                          action: "reject",
+                          // A typed note adds detail to the saved reason.
+                          reviewNote: reviewNote.trim() ? `${r}. ${reviewNote.trim()}` : r,
+                        }),
+                      `Rejected: ${r}`,
+                    )
+                  }
+                  className="chip hover:border-warn/50 hover:text-warn"
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <input
             value={reviewNote}
             onChange={(e) => setReviewNote(e.target.value)}
-            placeholder="Note to the user (optional, shown with the decision)"
+            placeholder="Note to the user (optional; added to a reason above, or sent with Approve / Reject)"
             className="field"
           />
           <div className="flex flex-wrap justify-end gap-2">

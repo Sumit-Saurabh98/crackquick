@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
-import { MongoClient } from "mongodb";
+import { APIError } from "better-auth/api";
+import { MongoClient, ObjectId } from "mongodb";
 
 declare global {
   var authMongoClient: MongoClient | undefined;
@@ -40,7 +41,32 @@ export const auth = betterAuth({
   },
   session: {
     // Saves a database read on most requests; a sign-out elsewhere takes up to this long to apply.
+    // (Suspension applies at once anyway: every request re-reads the account; see viewer.ts.)
     cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        // Suspended accounts can't sign in, by any method.
+        before: async (session) => {
+          const user = await client.db().collection("user").findOne({ _id: new ObjectId(String(session.userId)) }, { projection: { suspended: 1 } });
+          if (user?.suspended) throw new APIError("FORBIDDEN", { message: "This account is suspended." });
+        },
+      },
+    },
+  },
+  // Sign-in / sign-up guessing and spam: on in every environment, counted in the database so it
+  // holds across server instances. Per IP, from the x-forwarded-for header behind a proxy.
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60 * 60, max: 5 },
+      "/sign-in/social": { window: 60, max: 10 },
+    },
   },
   plugins: [nextCookies()],
 });

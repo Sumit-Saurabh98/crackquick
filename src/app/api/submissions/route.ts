@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSubmission, serializeSubmission } from "@/lib/submissions";
+import { suspendedUserIds } from "@/lib/users";
 import { can, route } from "@/lib/viewer";
 import { Submission } from "@/models/Submission";
 
@@ -11,12 +12,15 @@ export const GET = route(async (req, { viewer }) => {
   const search = req.nextUrl.searchParams;
   const filter: Record<string, unknown> = {};
   const reviewer = can(viewer, "submissions.review");
+  // Reviewers don't see suggestions from suspended accounts.
+  const hidden = reviewer ? await suspendedUserIds() : [];
   if (!reviewer || search.get("mine") === "1") filter.userId = viewer.id;
+  else if (hidden.length) filter.userId = { $nin: hidden };
   const status = search.get("status");
   if (status === "pending" || status === "approved" || status === "rejected") filter.status = status;
   const [docs, pending] = await Promise.all([
     Submission.find(filter).sort({ createdAt: status === "pending" ? 1 : -1 }).limit(200).lean(),
-    reviewer ? Submission.countDocuments({ status: "pending" }) : Promise.resolve(0),
+    reviewer ? Submission.countDocuments({ status: "pending", userId: { $nin: hidden } }) : Promise.resolve(0),
   ]);
   return NextResponse.json({
     items: docs.map((d) => serializeSubmission(d as Record<string, unknown>, viewer)),

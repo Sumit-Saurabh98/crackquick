@@ -7,7 +7,7 @@ import { Question } from "@/models/Question";
 
 /** What the audit log tracks on a question: its catalog fields plus `retired`. */
 export type Snapshot = CatalogFields & { retired: boolean };
-export type AuditSource = "manual" | "import" | "submission" | "bulk" | "backfill" | "revert";
+export type AuditSource = "manual" | "import" | "submission" | "bulk" | "backfill" | "revert" | "merge";
 type Change = { field: string; from: unknown; to: unknown };
 
 const KEYS = [...CATALOG_KEYS, "retired"] as const;

@@ -13,7 +13,7 @@ const AuditEntrySchema = new Schema(
     /** How it happened: by hand, JSON / LeetCode import, an approved suggestion, a bulk action, … */
     source: {
       type: String,
-      enum: ["manual", "import", "submission", "bulk", "backfill", "revert"],
+      enum: ["manual", "import", "submission", "bulk", "backfill", "revert", "merge"],
       default: "manual",
     },
     changes: { type: [ChangeSchema], default: [] },

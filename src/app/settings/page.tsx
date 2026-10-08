@@ -7,6 +7,7 @@ import type { SettingsJSON } from "@/app/api/settings/route";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { OptionManager } from "@/components/OptionManager";
 import { PlaylistSettings } from "@/components/PlaylistSettings";
+import { RejectReasons } from "@/components/RejectReasons";
 import { Spinner } from "@/components/Spinner";
 import { useCan } from "@/components/ViewerProvider";
 import { send } from "@/lib/api";
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   const canManageLists = useCan("lists.manage");
   const canEditCatalog = useCan("catalog.edit");
   const practises = useCan("practice.track");
+  const reviews = useCan("submissions.review");
   if (error && !data) return <ErrorPanel error={error} />;
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-6">
@@ -48,6 +50,15 @@ export default function SettingsPage() {
         </>
       ) : null}
       {canEditCatalog ? <CatalogTools /> : null}
+      {reviews ? (
+        <section className="card grid gap-4 p-5">
+          <div>
+            <h2 className="display text-xl">Rejection reasons</h2>
+            <p className="text-xs text-muted">One-click reasons on each pending suggestion in Submissions; the user sees the reason.</p>
+          </div>
+          <RejectReasons />
+        </section>
+      ) : null}
       {data && practises ? (
         <section className="card grid gap-4 p-5">
           <div>

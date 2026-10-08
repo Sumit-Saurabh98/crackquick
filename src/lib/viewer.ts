@@ -5,7 +5,7 @@ import { fail } from "./http";
 import { dbConnect } from "./mongodb";
 import { permissionsOf, type Permission, type Role } from "./rbac";
 import { runWithTimezone } from "./requestContext";
-import { roleOf } from "./users";
+import { accountState } from "./users";
 import { getSettings, type SettingsDoc } from "@/models/Settings";
 
 /** The signed-in user making a request, with their role's permissions and their settings. */
@@ -15,6 +15,8 @@ export type Viewer = {
   email: string;
   role: Role;
   permissions: Permission[];
+  /** Suspended accounts can't use the API (route() refuses them). */
+  suspended: boolean;
   settings: SettingsDoc;
 };
 
@@ -24,8 +26,8 @@ export async function getViewer(headers: Headers): Promise<Viewer | null> {
   if (!session) return null;
   await dbConnect();
   const { user } = session;
-  const [role, settings] = await Promise.all([roleOf(user.id), getSettings(user.id)]);
-  return { id: user.id, name: user.name, email: user.email, role, permissions: permissionsOf(role), settings };
+  const [{ role, suspended }, settings] = await Promise.all([accountState(user.id), getSettings(user.id)]);
+  return { id: user.id, name: user.name, email: user.email, role, permissions: permissionsOf(role), suspended, settings };
 }
 
 export function can(viewer: Viewer, permission: Permission) {
@@ -59,6 +61,7 @@ export function route<P extends Params = Params>(
     try {
       const viewer = await getViewer(req.headers);
       if (!viewer) throw new HttpError("Sign in required.", 401);
+      if (viewer.suspended) throw new HttpError("Your account is suspended.", 403);
       if (opts.permission) requirePermission(viewer, opts.permission);
       const params = ctx?.params ? await ctx.params : ({} as P);
       return await runWithTimezone(viewer.settings.timezone, () => handler(req, { viewer, params }));

@@ -11,10 +11,20 @@ function objectId(id: string) {
   return new mongoose.Types.ObjectId(id);
 }
 
-/** The user's current role from the database (not the session cookie, which may be minutes old). */
-export async function roleOf(userId: string): Promise<Role> {
-  const doc = await users().findOne({ _id: objectId(userId) }, { projection: { role: 1 } });
-  return parseRole(doc?.role);
+/** The user's current role and suspension from the database (not the session cookie, which may be minutes old). */
+export async function accountState(userId: string): Promise<{ role: Role; suspended: boolean }> {
+  const doc = await users().findOne({ _id: objectId(userId) }, { projection: { role: 1, suspended: 1 } });
+  return { role: parseRole(doc?.role), suspended: Boolean(doc?.suspended) };
+}
+
+/** Ids of suspended accounts (their pending suggestions are kept out of the review queue). */
+export async function suspendedUserIds(): Promise<string[]> {
+  return (await users().find({ suspended: true }, { projection: { _id: 1 } }).toArray()).map((u) => String(u._id));
+}
+
+/** Admins who can still act; the app must always keep at least one. */
+function activeAdmins() {
+  return users().countDocuments({ role: "admin", suspended: { $ne: true } });
 }
 
 export type UserJSON = {
@@ -25,11 +35,17 @@ export type UserJSON = {
   /** How they sign in: "credential" (email + password), "github", "google". */
   providers: string[];
   createdAt: string | null;
+  suspended: boolean;
+  suspendedReason: string;
+  suspendedAt: string | null;
 };
 
 export async function listUsers(): Promise<UserJSON[]> {
   const [docs, links] = await Promise.all([
-    users().find({}, { projection: { name: 1, email: 1, role: 1, createdAt: 1 } }).sort({ createdAt: 1 }).toArray(),
+    users()
+      .find({}, { projection: { name: 1, email: 1, role: 1, createdAt: 1, suspended: 1, suspendedReason: 1, suspendedAt: 1 } })
+      .sort({ createdAt: 1 })
+      .toArray(),
     accounts().find({}, { projection: { userId: 1, providerId: 1 } }).toArray(),
   ]);
   const providers = new Map<string, string[]>();
@@ -44,6 +60,9 @@ export async function listUsers(): Promise<UserJSON[]> {
     role: parseRole(d.role),
     providers: providers.get(String(d._id)) ?? [],
     createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : null,
+    suspended: Boolean(d.suspended),
+    suspendedReason: String(d.suspendedReason ?? ""),
+    suspendedAt: d.suspendedAt ? new Date(d.suspendedAt).toISOString() : null,
   }));
 }
 
@@ -52,11 +71,10 @@ export async function setRole(userId: string, raw: unknown) {
   const role = ROLES.find((r) => r === raw);
   if (!role) throw new HttpError(`Role must be one of: ${ROLES.join(", ")}.`, 400);
   const _id = objectId(userId);
-  const current = await users().findOne({ _id }, { projection: { role: 1 } });
+  const current = await users().findOne({ _id }, { projection: { role: 1, suspended: 1 } });
   if (!current) throw new HttpError("User not found", 404);
-  if (parseRole(current.role) === "admin" && role !== "admin") {
-    const admins = await users().countDocuments({ role: "admin" });
-    if (admins <= 1) throw new HttpError("This is the only admin. Make someone else admin first.", 409);
+  if (parseRole(current.role) === "admin" && role !== "admin" && !current.suspended && (await activeAdmins()) <= 1) {
+    throw new HttpError("This is the only admin. Make someone else admin first.", 409);
   }
   await users().updateOne({ _id }, { $set: { role, updatedAt: new Date() } });
   return role;
@@ -91,4 +109,40 @@ export async function userOverview(since: Date) {
       createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null,
     })),
   };
+}
+
+/**
+ * Suspends (or restores) an account. Suspended: no new sign-ins, current sessions ended, every API
+ * call refused, pending suggestions hidden from reviewers. Data is kept; undo restores everything.
+ */
+export async function setSuspended(byUserId: string, userId: string, suspended: boolean, reason: unknown) {
+  const _id = objectId(userId);
+  const target = await users().findOne({ _id }, { projection: { role: 1, suspended: 1 } });
+  if (!target) throw new HttpError("User not found", 404);
+  if (suspended) {
+    if (userId === byUserId) throw new HttpError("You can't suspend yourself.", 400);
+    if (parseRole(target.role) === "admin" && !target.suspended && (await activeAdmins()) <= 1) {
+      throw new HttpError("This is the only active admin.", 409);
+    }
+    await users().updateOne(
+      { _id },
+      {
+        $set: {
+          suspended: true,
+          suspendedReason: String(reason ?? "").trim().slice(0, 500),
+          suspendedAt: new Date(),
+          suspendedBy: byUserId,
+          updatedAt: new Date(),
+        },
+      },
+    );
+    // Sign them out everywhere now, not when their session would expire.
+    await mongoose.connection.db!.collection("session").deleteMany({ userId: _id });
+  } else {
+    await users().updateOne(
+      { _id },
+      { $set: { suspended: false, updatedAt: new Date() }, $unset: { suspendedReason: "", suspendedAt: "", suspendedBy: "" } },
+    );
+  }
+  return suspended;
 }

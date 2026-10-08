@@ -56,6 +56,9 @@ export function AdminDashboard() {
         <Tile label="Added this week" value={catalog.addedWeek} href="/questions" />
         <Tile label="Retired" value={catalog.retired} hint={`${catalog.retiredMonth} in the last 30 days`} href="/questions?retired=1" />
         <Tile label="Attempts this week" value={catalog.attemptsWeek} hint="by all learners" />
+        {catalog.duplicates !== null ? (
+          <Tile label="Possible duplicates" value={catalog.duplicates} href="/duplicates" warn={catalog.duplicates > 0} />
+        ) : null}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">

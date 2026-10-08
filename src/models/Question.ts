@@ -25,6 +25,8 @@ const QuestionSchema = new Schema(
     /** Taken out of the catalog by an admin; users who practised it keep their history. */
     retired: { type: Boolean, default: false },
     createdBy: { type: String, default: "" },
+    /** Set when retired by a duplicate merge: the question everyone's progress moved to. */
+    mergedInto: { type: Schema.Types.ObjectId, ref: "Question", default: null },
   },
   { timestamps: true },
 );

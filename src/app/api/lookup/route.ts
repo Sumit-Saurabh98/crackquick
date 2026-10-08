@@ -2,21 +2,25 @@ import { NextResponse } from "next/server";
 import { fail } from "@/lib/http";
 import { lookupProblems } from "@/lib/platforms";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
+import { consume } from "@/lib/rateLimit";
 import { can, route } from "@/lib/viewer";
 import { Question } from "@/models/Question";
 
 /**
  * Body: { platform: "leetcode" | "gfg", input: "1, 15, 146-150, two-sum, https://..., LRU Cache" }
  * Fetches problem details from the platform and flags ones already in the catalog. Catalog editors
- * look up to 100 at once; everyone else one (they can only suggest one question at a time).
+ * look up to 100 at once; everyone else one at a time, at most LIMITS.lookup per hour.
  */
 export const POST = route(
   async (req, { viewer }) => {
     const body = await req.json();
+    const editor = can(viewer, "catalog.edit");
+    // Each lookup is a request from this server to LeetCode / GFG; cap them for non-editors.
+    if (!editor) await consume(viewer.id, "lookup");
     const platform = body.platform === "gfg" ? "gfg" : "leetcode";
     let result;
     try {
-      result = await lookupProblems(platform, String(body.input ?? ""), can(viewer, "catalog.edit") ? undefined : 1);
+      result = await lookupProblems(platform, String(body.input ?? ""), editor ? undefined : 1);
     } catch (e) {
       const site = platform === "gfg" ? "GeeksforGeeks" : "LeetCode";
       return fail(new Error(`Couldn't reach ${site}: ${e instanceof Error ? e.message : String(e)}`), 502);

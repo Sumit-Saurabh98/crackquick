@@ -1,6 +1,7 @@
 import { HttpError } from "./attempts";
 import { audit, auditEntry, snapshot } from "./audit";
 import { catalogInput, catalogOf, diffCatalog, findByProblemUrl, withCanonicalNames, type CatalogFields } from "./catalog";
+import { consume, MAX_PENDING_EDITS } from "./rateLimit";
 import { can, type Viewer } from "./viewer";
 import { Question } from "@/models/Question";
 import { Submission } from "@/models/Submission";
@@ -51,6 +52,8 @@ const note = (v: unknown) => String(v ?? "").trim().slice(0, 2000);
 /** A new question for the catalog, or changes to one, waiting for an admin. */
 export async function createSubmission(viewer: Viewer, body: Record<string, unknown>) {
   const kind = body.kind === "edit" ? "edit" : "new";
+  // Stops withdraw-and-resubmit loops; reviewers are trusted.
+  if (!can(viewer, "submissions.review")) await consume(viewer.id, "suggest");
   const fields = catalogInput(body);
   const who = { userId: viewer.id, userName: viewer.name, userEmail: viewer.email, note: note(body.note) };
 
@@ -71,6 +74,12 @@ export async function createSubmission(viewer: Viewer, body: Record<string, unkn
     }
   }
 
+  if ((await Submission.countDocuments({ userId: viewer.id, kind: "edit", status: "pending" })) >= MAX_PENDING_EDITS) {
+    throw new HttpError(
+      `You have ${MAX_PENDING_EDITS} edit suggestions waiting for review. You can send more once some are approved or rejected.`,
+      409,
+    );
+  }
   const q = await Question.findById(String(body.questionId ?? "")).lean().catch(() => null);
   if (!q || q.retired) throw new HttpError("Question not found", 404);
   const { data, before } = diffCatalog(catalogOf(q as Record<string, unknown>), fields);

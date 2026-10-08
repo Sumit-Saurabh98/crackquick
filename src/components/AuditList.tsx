@@ -22,6 +22,7 @@ const SOURCE_LABEL: Record<AuditJSON["source"], string> = {
   bulk: "via bulk action",
   backfill: "via company backfill",
   revert: "revert",
+  merge: "via duplicate merge",
 };
 
 /** Catalog change history. `showQuestion` adds the question's title (for the global feed). */
