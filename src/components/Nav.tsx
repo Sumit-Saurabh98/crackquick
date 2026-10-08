@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -16,7 +17,8 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-bg/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          <Image src="/logo.png" alt="" width={32} height={32} priority />
           <span className="display text-xl tracking-tight text-brass2">CrackQuick</span>
         </Link>
         <nav className="-mr-2 flex min-w-0 items-center gap-1 overflow-x-auto pr-2 text-sm">
