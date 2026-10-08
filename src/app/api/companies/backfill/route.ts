@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { fromGfg, gfgDetail, leetcodeCompanies } from "@/lib/platforms";
 import { parseProblemUrl } from "@/lib/problemUrl";
+import { audit, auditEntry, newBatchId, snapshot } from "@/lib/audit";
 import { route } from "@/lib/viewer";
 import { Question } from "@/models/Question";
 
 /** Needs catalog.edit. Fills company tags on LeetCode / GFG questions that have none (e.g. imported before tags were supported). */
 export const POST = route(
-  async () => {
+  async (_req, { viewer }) => {
     const docs = await Question.find(
       { $or: [{ companies: { $size: 0 } }, { companies: { $exists: false } }], platformUrl: { $ne: "" } },
-      { platformUrl: 1 },
+      {},
     ).lean();
 
     const updates: { id: unknown; companies: string[] }[] = [];
@@ -32,6 +33,17 @@ export const POST = route(
       }
     }
 
+    const byId = new Map(docs.map((d) => [String(d._id), d as Record<string, unknown>]));
+    const batchId = newBatchId();
+    await audit(
+      ...updates.map((u) => {
+        const doc = byId.get(String(u.id))!;
+        return auditEntry(viewer, doc as { _id: unknown }, snapshot(doc), snapshot({ ...doc, companies: u.companies }), {
+          source: "backfill",
+          batchId,
+        });
+      }),
+    );
     if (updates.length) {
       await Question.bulkWrite(
         updates.map((u) => ({ updateOne: { filter: { _id: u.id }, update: { $set: { companies: u.companies } } } })),

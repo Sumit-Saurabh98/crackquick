@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { HttpError } from "@/lib/attempts";
+import { audit, auditEntry, snapshot } from "@/lib/audit";
 import { catalogInput, findByProblemUrl, withCanonicalNames } from "@/lib/catalog";
 import { checkId } from "@/lib/http";
 import { serializeQuestion } from "@/lib/serialize";
@@ -36,6 +37,7 @@ export const PATCH = route<P>(
     const catalog = catalogInput(body);
     if (Object.keys(catalog).length || body.retired !== undefined) {
       requirePermission(viewer, "catalog.edit");
+      const before = snapshot(q.toObject());
       const fields = await withCanonicalNames(catalog);
       if (fields.platformUrl && (await findByProblemUrl(fields.platformUrl, q._id))) {
         throw new HttpError("Another question already has that problem link.", 409);
@@ -44,6 +46,7 @@ export const PATCH = route<P>(
       if (fields.videoUrls) q.videoUrl = undefined;
       if (body.retired !== undefined) q.retired = Boolean(body.retired);
       await q.save();
+      await audit(auditEntry(viewer, q, before, snapshot(q.toObject())));
     }
 
     const personal = ["notes", "isStarred", "archived", "status"].some((k) => body[k] !== undefined);
@@ -83,6 +86,7 @@ export const DELETE = route<P>(
         409,
       );
     }
+    await audit(auditEntry(viewer, q, snapshot(q.toObject()), null));
     await Promise.all([
       q.deleteOne(),
       Progress.deleteMany({ questionId: q._id }),

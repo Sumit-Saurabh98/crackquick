@@ -10,20 +10,10 @@ import { useCan } from "@/components/ViewerProvider";
 import { send } from "@/lib/api";
 import type { CatalogFields } from "@/lib/catalog";
 import { formatDate } from "@/lib/dates";
+import { FIELD_LABEL } from "@/lib/fieldLabels";
 import type { SubmissionJSON } from "@/lib/submissions";
 import { useApi } from "@/lib/useApi";
 
-const FIELD_LABEL: Record<keyof CatalogFields, string> = {
-  title: "Title",
-  platform: "Platform",
-  platformUrl: "Problem link",
-  externalId: "Problem number",
-  videoUrls: "Video links",
-  topics: "Topics",
-  companies: "Companies",
-  difficulty: "Difficulty",
-  pattern: "Pattern",
-};
 
 const STATUS_STYLE: Record<SubmissionJSON["status"], string> = {
   pending: "bg-brass/15 text-brass2",
@@ -115,7 +105,7 @@ function SubmissionCard({ s, canReview, onDone }: { s: SubmissionJSON; canReview
   const [reviewNote, setReviewNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const fields = (Object.keys(FIELD_LABEL) as (keyof CatalogFields)[]).filter((k) => s.data[k] !== undefined);
+  const fields = (Object.keys(FIELD_LABEL) as (keyof CatalogFields)[]).filter((k) => k in s.data && s.data[k] !== undefined);
 
   async function run(fn: () => Promise<unknown>, msg: string) {
     setBusy(true);

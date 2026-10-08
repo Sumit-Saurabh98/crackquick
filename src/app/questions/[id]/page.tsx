@@ -9,6 +9,7 @@ import { ErrorPanel } from "@/components/ErrorPanel";
 import { Markdown } from "@/components/Markdown";
 import { DifficultyPill, RevisionPill, StatusPill } from "@/components/Pills";
 import { QuestionForm } from "@/components/QuestionForm";
+import { QuestionChanges, QuestionInsight } from "@/components/QuestionInsight";
 import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
 import { useCan } from "@/components/ViewerProvider";
@@ -309,6 +310,21 @@ export default function QuestionDetailPage() {
             }}
           />
         </div>
+      ) : null}
+
+      {canEdit ? (
+        <>
+          <QuestionInsight id={id} />
+          {/* Re-fetched after any save, so a new edit shows up here at once. */}
+          <QuestionChanges
+            key={item.updatedAt}
+            id={id}
+            onChanged={(m) => {
+              setToast(m);
+              question.reload();
+            }}
+          />
+        </>
       ) : null}
 
       {logging ? (

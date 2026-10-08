@@ -15,10 +15,15 @@ export function QuestionRow({
   q,
   onChanged,
   onLogged,
+  selected,
+  onSelect,
 }: {
   q: QuestionJSON;
   onChanged: () => void;
   onLogged?: (r: AttemptResult) => void;
+  /** With `onSelect`, the row gets a checkbox for bulk actions. */
+  selected?: boolean;
+  onSelect?: (checked: boolean) => void;
 }) {
   const practises = useCan("practice.track");
   const [logging, setLogging] = useState(false);
@@ -44,7 +49,20 @@ export function QuestionRow({
   ].filter(Boolean);
 
   return (
-    <div className="grid gap-2 border-b border-line px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto] sm:items-center">
+    <div
+      className={`grid gap-2 border-b border-line px-4 py-3 last:border-b-0 sm:items-center ${
+        onSelect ? "grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto]" : "sm:grid-cols-[1fr_auto]"
+      } ${selected ? "bg-brass/5" : ""}`}
+    >
+      {onSelect ? (
+        <input
+          type="checkbox"
+          checked={Boolean(selected)}
+          onChange={(e) => onSelect(e.target.checked)}
+          aria-label={`Select ${q.title}`}
+          className="mt-1 size-4 self-start accent-[var(--brass)] sm:mt-0 sm:self-center"
+        />
+      ) : null}
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`/questions/${q._id}`} className="font-medium hover:text-brass2">
@@ -67,7 +85,7 @@ export function QuestionRow({
           </div>
         ) : null}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className={`flex flex-wrap gap-2 ${onSelect ? "col-start-2 sm:col-start-auto" : ""}`}>
         {q.platformUrl ? (
           <a href={q.platformUrl} target="_blank" rel="noreferrer" className="btn btn-sm">
             Open

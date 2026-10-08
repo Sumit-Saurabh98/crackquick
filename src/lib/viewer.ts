@@ -36,6 +36,13 @@ export function requirePermission(viewer: Viewer, permission: Permission) {
   if (!can(viewer, permission)) throw new HttpError("You don't have permission to do that.", 403);
 }
 
+/** Management roles: anyone who can change the catalog, review suggestions or manage users. */
+export const MANAGEMENT: Permission[] = ["catalog.edit", "submissions.review", "users.manage"];
+
+export function requireAnyPermission(viewer: Viewer, permissions: Permission[]) {
+  if (!permissions.some((p) => can(viewer, p))) throw new HttpError("You don't have permission to do that.", 403);
+}
+
 type Params = Record<string, string | string[]>;
 type Handler<P extends Params> = (req: NextRequest, ctx: { viewer: Viewer; params: P }) => Promise<Response>;
 

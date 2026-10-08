@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
+import { BulkBar } from "@/components/BulkBar";
 import { QuestionRow } from "@/components/QuestionRow";
 import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
@@ -29,6 +30,10 @@ function QuestionsView() {
   const pathname = usePathname();
   const query = params.toString();
   const { data, error, reload } = useApi<Page>(`/api/questions?${query}`);
+  // Bulk selection belongs to one filter set; changing the filters starts it fresh.
+  const [selection, setSelection] = useState({ query, ids: new Set<string>(), all: false });
+  const sel = selection.query === query ? selection : { query, ids: new Set<string>(), all: false };
+  const selectRows = (ids: Set<string>, all: boolean) => setSelection({ query, ids, all });
   const facets = useApi<Facets>("/api/meta").data;
   const canEdit = useCan("catalog.edit");
   const practises = useCan("practice.track");
@@ -183,10 +188,41 @@ function QuestionsView() {
       </div>
 
       {error ? <p className="text-sm text-warn">{error}</p> : null}
+      {canEdit && data?.items.length ? (
+        <BulkBar
+          pageIds={data.items.map((q) => q._id)}
+          selected={sel.ids}
+          allMatching={sel.all}
+          total={data.total}
+          query={query}
+          onSelect={selectRows}
+          onDone={(m) => {
+            setToast(m);
+            selectRows(new Set(), false);
+            reload();
+          }}
+        />
+      ) : null}
       <div className="card">
         {!data ? <Spinner className="min-h-[30vh]" /> : null}
         {data?.items.map((q) => (
-          <QuestionRow key={q._id} q={q} onChanged={reload} onLogged={(r) => setToast(attemptMessage(r))} />
+          <QuestionRow
+            key={q._id}
+            q={q}
+            onChanged={reload}
+            onLogged={(r) => setToast(attemptMessage(r))}
+            selected={sel.all || sel.ids.has(q._id)}
+            onSelect={
+              canEdit
+                ? (checked) => {
+                    const ids = new Set(sel.ids);
+                    if (checked) ids.add(q._id);
+                    else ids.delete(q._id);
+                    selectRows(ids, false);
+                  }
+                : undefined
+            }
+          />
         ))}
         {data && data.items.length === 0 ? (
           <p className="p-6 text-sm text-muted">

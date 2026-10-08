@@ -164,6 +164,19 @@ export async function listQuestions(search: URLSearchParams, viewer: Viewer) {
   };
 }
 
+/** Ids of every question the list would show for these filters (all pages), for bulk actions. */
+export async function matchingQuestionIds(search: URLSearchParams, viewer: Viewer, max: number) {
+  const filter = buildQuestionFilter(search, viewer);
+  const rows = await Question.aggregate<{ _id: unknown }>([
+    { $match: { retired: filter.retired } },
+    ...withProgress(viewer.id),
+    { $match: filter },
+    { $limit: max + 1 },
+    { $project: { _id: 1 } },
+  ]);
+  return rows.map((r) => r._id);
+}
+
 /** Distinct values that exist in the data, for filter dropdowns. */
 export async function questionFacets() {
   const live = { retired: { $ne: true } };

@@ -1,4 +1,5 @@
 import { HttpError } from "./attempts";
+import { audit, auditEntry, snapshot } from "./audit";
 import { catalogInput, catalogOf, diffCatalog, findByProblemUrl, withCanonicalNames, type CatalogFields } from "./catalog";
 import { can, type Viewer } from "./viewer";
 import { Question } from "@/models/Question";
@@ -92,15 +93,18 @@ export async function reviewSubmission(viewer: Viewer, id: string, action: unkno
       }
       const q = await Question.create({ ...fields, createdBy: s.userId });
       s.questionId = q._id;
+      await audit(auditEntry(viewer, q, null, snapshot(q.toObject()), { source: "submission", submissionId: s._id }));
     } else {
       const q = await Question.findById(s.questionId);
       if (!q) throw new HttpError("The question was deleted. Reject this one.", 409);
       if (fields.platformUrl && (await findByProblemUrl(fields.platformUrl, q._id))) {
         throw new HttpError("Another question already has that problem link.", 409);
       }
+      const before = snapshot(q.toObject());
       q.set(fields);
       if (fields.videoUrls) q.videoUrl = undefined;
       await q.save();
+      await audit(auditEntry(viewer, q, before, snapshot(q.toObject()), { source: "submission", submissionId: s._id }));
     }
   }
   s.status = action === "approve" ? "approved" : "rejected";

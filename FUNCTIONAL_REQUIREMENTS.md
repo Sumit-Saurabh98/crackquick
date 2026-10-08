@@ -166,6 +166,13 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 - Keeps playing while you move between pages. **Minimize (–)** hides the player completely (video included) while the music keeps playing; the floating button shows the current song with play/pause and reopens the player. ✕ stops it.
 - Note: YouTube's embed terms ask for a visible player; hiding it is a deliberate choice for this personal app.
 
+## 5b. Admin tools
+
+- **Dashboard** (`/` for management-only roles; learners keep their Desk): pending suggestions banner with the oldest one's date; tiles for users, active this week (signed in or practised), new this week, pending suggestions, live questions, added this week, retired (and retired in the last 30 days), attempts this week by all learners; recent catalog changes; newest users. Each section shows only if the viewer has its permission (`catalog.edit`, `submissions.review`, `users.manage`).
+- **Insight** (question page, `catalog.edit`): done / in progress / not started across all learners, attempts and how many people made them, blank rate, average confidence and time, starred / hidden counts. Totals only, never an individual's data. Hints appear once there's enough data (5+ attempts): often blanked (suggests a better or first video), difficulty that looks wrong for how people rate it, low confidence, hidden by 3+ people.
+- **Audit log** (`catalog.edit`): every catalog write is recorded with who, when, how (by hand, import, approved suggestion, bulk action, company backfill, revert) and each field's old → new value: create, edit, retire, restore, delete. Shown per question (“Changes” on the question page) and as a feed (**Changes** in the admin nav, `/audit`, 50 per page). **Revert** undoes an edit / retire / restore once, only if those fields haven't changed again since (otherwise the later change must be reverted first); the revert is itself recorded.
+- **Bulk actions** (Questions list, `catalog.edit`): tick rows, “Select page”, or “Select all N matching” (every question the current filters match, resolved on the server). Actions: set pattern (or clear it), set difficulty, add / remove topic, add / remove company (case-insensitive, no duplicates), retire, restore. Asks for confirmation with the exact count; up to 5,000 at once; each changed question gets its own audit entry under one batch.
+
 ## 6. Non-functional
 
 - Secrets (`MONGODB_URI`, `BETTER_AUTH_SECRET`, OAuth keys) only in `.env.local` (git-ignored); `.env.example` lists them.
@@ -176,4 +183,35 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 
 ## 7. Out of scope
 
-Gamification, leaderboards, email verification / password reset (needs an email provider), private per-user questions, code execution, native apps, AI solving. Future ideas if needed: more preset lists, reminders (calendar feed), time-to-solve analytics.
+Gamification, leaderboards, email verification / password reset (needs an email provider), private per-user questions, code execution, native apps, AI solving. Future ideas if needed: reminders (calendar feed), time-to-solve analytics. Planned admin features are in §8.
+
+## 8. Planned admin features (not built yet)
+
+Proposals, not current behaviour (except 8.1, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
+
+### 8.1 Highest value (P1): done
+
+Built; see §5b (admin dashboard, per-question insight, audit log, bulk actions).
+
+### 8.2 Moderation and abuse protection (P2)
+
+5. **Suspend a user**: blocks sign-in and API access without deleting their data; their pending submissions are hidden from the queue. Reversible. The last admin can't be suspended. *Permission*: `users.manage`.
+6. **Rate limits with visibility**: per-user caps on lookups (e.g. 30/hour) and edit suggestions (e.g. 5 pending), Better Auth's sign-in / sign-up rate limit on in every environment, and an admin view of who is hitting the limits. *Permission*: `users.manage` to view.
+7. **Saved rejection reasons**: one-click reasons when rejecting a submission (“Duplicate”, “Premium-only”, “Not DSA”, …), editable list, still with optional free text. *Permission*: `submissions.review`.
+8. **Duplicate finder**: flags catalog questions with near-identical titles or the same problem on different platforms (e.g. a GFG copy of a LeetCode problem), with Merge (keep one, move everyone's progress and attempts onto it, retire the other) or Dismiss. *Permission*: `catalog.edit`; merge also `catalog.delete`.
+
+### 8.3 Catalog quality (P2)
+
+9. **Health report**: questions missing a pattern, topics, companies or videos; dead problem or video links (checked periodically); premium-only problems. Each row links straight to its editor. *Permission*: `catalog.edit`.
+10. **Curated lists**: ordered collections such as “Blind 75”, “Top Google”, “Week 1 basics”, built from catalog questions. Users can follow a list; the Desk and Questions filters then show progress through it. *Permission*: new `lists.curate` (editor, admin) to create / edit; following needs `practice.track`.
+11. **Featured / question of the day**: an admin picks (or schedules) a question pinned on everyone's Desk for that day. *Permission*: `catalog.edit`.
+
+### 8.4 Users (P3)
+
+12. **User detail page** (from the Users page): sign-in methods, join date, last active, streak, counts of done / in progress, submissions with outcomes, role history. For support (“my progress vanished”). Read-only; no notes content. *Permission*: `users.manage`.
+13. **Announcements**: a dismissible banner on everyone's Desk (“New: Graph section added”), with start / end dates. *Permission*: new `announcements.manage` (admin).
+
+### 8.5 Operations (P3)
+
+14. **Backups from the UI**: run the same backup `reset-db` writes, list past backups with size and date, download one. Restore stays a command-line step. *Permission*: new `ops.backup` (admin).
+

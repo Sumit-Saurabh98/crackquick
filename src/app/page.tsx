@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AdminDashboard } from "@/components/AdminDashboard";
 import { PracticeOnly } from "@/components/PracticeOnly";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { Heatmap } from "@/components/Heatmap";
@@ -11,7 +12,13 @@ import { formatDate } from "@/lib/dates";
 import type { Stats } from "@/lib/stats";
 import { useApi } from "@/lib/useApi";
 
+/** Learners get their Desk; management-only roles (admins) get the admin dashboard. */
 export default function DeskPage() {
+  const practises = useCan("practice.track");
+  const editsCatalog = useCan("catalog.edit");
+  const reviews = useCan("submissions.review");
+  const managesUsers = useCan("users.manage");
+  if (!practises && (editsCatalog || reviews || managesUsers)) return <AdminDashboard />;
   return (
     <PracticeOnly>
       <Desk />

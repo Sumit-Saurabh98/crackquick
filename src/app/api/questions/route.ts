@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { HttpError, logAttempt, parseAttemptInput } from "@/lib/attempts";
+import { audit, auditEntry, snapshot } from "@/lib/audit";
 import { catalogInput, findByProblemUrl, withCanonicalNames } from "@/lib/catalog";
 import { listQuestions } from "@/lib/queries";
 import { serializeQuestion } from "@/lib/serialize";
@@ -29,6 +30,7 @@ export const POST = route(
       throw new HttpError("That problem is already in the catalog.", 409);
     }
     const created = await Question.create({ ...fields, createdBy: viewer.id });
+    await audit(auditEntry(viewer, created, null, snapshot(created.toObject())));
 
     if (practises && (body.isStarred || body.status === "in_progress")) {
       const p = await progressFor(viewer.id, created._id);

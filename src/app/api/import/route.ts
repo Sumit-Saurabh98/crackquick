@@ -3,6 +3,7 @@ import { DIFFICULTIES } from "@/lib/constants";
 import { csv, fail } from "@/lib/http";
 import { canonicalNames } from "@/lib/options";
 import { canonicalProblemUrl } from "@/lib/problemUrl";
+import { audit, auditEntry, newBatchId, snapshot } from "@/lib/audit";
 import { videoLinks } from "@/lib/serialize";
 import { route } from "@/lib/viewer";
 import { Question } from "@/models/Question";
@@ -72,6 +73,8 @@ export const POST = route(
       q.pattern = patternName(q.pattern);
     }
     const created = fresh.length ? await Question.insertMany(fresh.map((q) => ({ ...q, createdBy: viewer.id }))) : [];
+    const batchId = newBatchId();
+    await audit(...created.map((q) => auditEntry(viewer, q, null, snapshot(q.toObject()), { source: "import", batchId })));
     return NextResponse.json({ imported: created.length, skipped });
   },
   { permission: "catalog.edit", errorStatus: 400 },

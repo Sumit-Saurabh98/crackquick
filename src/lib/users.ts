@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { HttpError } from "./attempts";
-import { parseRole, ROLES, type Role } from "./rbac";
+import { parseRole, permissionsOf, ROLES, type Role } from "./rbac";
 
 /** Accounts live in Better Auth's `user` / `account` collections; this reads and updates them directly. */
 const users = () => mongoose.connection.db!.collection("user");
@@ -60,4 +60,35 @@ export async function setRole(userId: string, raw: unknown) {
   }
   await users().updateOne({ _id }, { $set: { role, updatedAt: new Date() } });
   return role;
+}
+
+/** Accounts whose role practises (users and editors; a missing role counts as user). */
+export async function countLearners() {
+  const roles = ROLES.filter((r) => permissionsOf(r).includes("practice.track"));
+  return users().countDocuments({ $or: [{ role: { $in: roles } }, { role: { $exists: false } }] });
+}
+
+/** Account counts for the admin dashboard. `since` marks "new". Active = signed in or practised since then. */
+export async function userOverview(since: Date) {
+  const db = mongoose.connection.db!;
+  const [total, fresh, sessionUsers, eventUsers, recent] = await Promise.all([
+    users().countDocuments(),
+    users().countDocuments({ createdAt: { $gte: since } }),
+    db.collection("session").distinct("userId", { updatedAt: { $gte: since } }),
+    db.collection("activityevents").distinct("userId", { at: { $gte: since } }),
+    users().find({}, { projection: { name: 1, email: 1, role: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(5).toArray(),
+  ]);
+  const active = new Set([...sessionUsers, ...eventUsers].map(String));
+  return {
+    total,
+    newSince: fresh,
+    activeSince: active.size,
+    recent: recent.map((u) => ({
+      id: String(u._id),
+      name: String(u.name ?? ""),
+      email: String(u.email ?? ""),
+      role: parseRole(u.role),
+      createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null,
+    })),
+  };
 }

@@ -8,13 +8,17 @@ import { useViewer } from "@/components/ViewerProvider";
 import { authClient } from "@/lib/auth-client";
 import { ROLE_INFO, type Permission } from "@/lib/rbac";
 
-const links: { href: string; label: string; permission?: Permission }[] = [
-  { href: "/", label: "Desk", permission: "practice.track" },
-  { href: "/review", label: "Review", permission: "practice.track" },
+/** `show` decides from the viewer's permissions; links without it are for everyone. */
+const links: { href: string; label: string; show?: (has: (p: Permission) => boolean) => boolean }[] = [
+  { href: "/", label: "Desk", show: (has) => has("practice.track") },
+  { href: "/", label: "Dashboard", show: (has) => !has("practice.track") },
+  { href: "/review", label: "Review", show: (has) => has("practice.track") },
   { href: "/questions", label: "Questions" },
-  { href: "/progress", label: "Progress", permission: "practice.track" },
+  { href: "/progress", label: "Progress", show: (has) => has("practice.track") },
   { href: "/submissions", label: "Submissions" },
-  { href: "/users", label: "Users", permission: "users.manage" },
+  { href: "/users", label: "Users", show: (has) => has("users.manage") },
+  // Learners who also edit reach it from question pages; keeps their nav short.
+  { href: "/audit", label: "Changes", show: (has) => has("catalog.edit") && !has("practice.track") },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -24,17 +28,17 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-bg/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href={viewer?.permissions.includes("practice.track") === false ? "/questions" : "/"} className="flex shrink-0 items-center gap-2">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
           <Image src="/logo.png" alt="" width={32} height={32} priority />
           <span className="display text-xl tracking-tight text-brass2">CrackQuick</span>
         </Link>
         {viewer ? (
           <nav className="-mr-2 flex min-w-0 items-center gap-1 overflow-x-auto pr-2 text-sm">
-            {links.filter((l) => !l.permission || viewer.permissions.includes(l.permission)).map((l) => {
+            {links.filter((l) => !l.show || l.show((p) => viewer.permissions.includes(p))).map((l) => {
               const on = l.href === "/" ? path === "/" : path.startsWith(l.href) && path !== "/questions/new";
               return (
                 <Link
-                  key={l.href}
+                  key={l.label}
                   href={l.href}
                   aria-current={on ? "page" : undefined}
                   className={`shrink-0 rounded-full px-3 py-1.5 ${on ? "bg-brass text-bg" : "text-muted hover:text-ink"}`}
