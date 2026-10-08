@@ -1,5 +1,6 @@
 import { serializeAudit } from "./audit";
 import { findDuplicates } from "./duplicates";
+import { healthReport } from "./health";
 import { can, type Viewer } from "./viewer";
 import { suspendedUserIds, userOverview } from "./users";
 import { AuditEntry } from "@/models/AuditEntry";
@@ -26,9 +27,19 @@ export async function adminOverview(viewer: Viewer) {
     can(viewer, "catalog.edit") ? AuditEntry.find({}).sort({ at: -1, _id: -1 }).limit(8).lean() : Promise.resolve([]),
     can(viewer, "users.manage") ? userOverview(week) : Promise.resolve(null),
   ]);
-  const duplicates = can(viewer, "catalog.edit") ? (await findDuplicates()).length : null;
+  const [duplicates, health] = can(viewer, "catalog.edit")
+    ? await Promise.all([findDuplicates().then((d) => d.length), healthReport()])
+    : [null, null];
   return {
-    catalog: { live, retired, addedWeek, retiredMonth, attemptsWeek, duplicates },
+    catalog: {
+      live,
+      retired,
+      addedWeek,
+      retiredMonth,
+      attemptsWeek,
+      duplicates,
+      health: health ? { withIssues: health.withIssues, total: health.total } : null,
+    },
     submissions: can(viewer, "submissions.review")
       ? { pending, oldestAt: oldestPending?.createdAt ? new Date(oldestPending.createdAt).toISOString() : null }
       : null,

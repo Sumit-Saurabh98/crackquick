@@ -16,7 +16,7 @@ export type FoundProblem = {
 
 export type LookupResult = { items: FoundProblem[]; errors: string[] };
 
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36";
+export const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36";
 const MAX_ITEMS = 100;
 
 function videoSearchUrl(query: string) {
@@ -59,21 +59,35 @@ export function leetcodeCompanies(slug: string): string[] {
   return ids.map((i) => companyData.companies[i]);
 }
 
-type LcIndexEntry = { id: string; slug: string };
-let lcIndex: { at: number; byId: Map<string, LcIndexEntry> } | null = null;
+type LcIndexEntry = { id: string; slug: string; paidOnly: boolean };
+let lcIndex: { at: number; byId: Map<string, LcIndexEntry>; bySlug: Map<string, LcIndexEntry> } | null = null;
 
-/** id → slug for every LeetCode problem, cached in memory for a day. */
-async function leetcodeIndex() {
-  if (lcIndex && Date.now() - lcIndex.at < 86400000) return lcIndex.byId;
-  type All = { stat_status_pairs: { stat: { frontend_question_id: number | string; question__title_slug: string } }[] };
+/** Every LeetCode problem (one request), cached in memory for a day. */
+async function loadLeetcodeIndex() {
+  if (lcIndex && Date.now() - lcIndex.at < 86400000) return lcIndex;
+  type All = {
+    stat_status_pairs: { stat: { frontend_question_id: number | string; question__title_slug: string }; paid_only?: boolean }[];
+  };
   const data = await getJson<All>("https://leetcode.com/api/problems/all/");
   const byId = new Map<string, LcIndexEntry>();
-  for (const { stat } of data.stat_status_pairs) {
-    const id = String(stat.frontend_question_id);
-    byId.set(id, { id, slug: stat.question__title_slug });
+  const bySlug = new Map<string, LcIndexEntry>();
+  for (const { stat, paid_only } of data.stat_status_pairs) {
+    const entry = { id: String(stat.frontend_question_id), slug: stat.question__title_slug, paidOnly: Boolean(paid_only) };
+    byId.set(entry.id, entry);
+    bySlug.set(entry.slug, entry);
   }
-  lcIndex = { at: Date.now(), byId };
-  return byId;
+  lcIndex = { at: Date.now(), byId, bySlug };
+  return lcIndex;
+}
+
+/** id → problem for every LeetCode problem. */
+async function leetcodeIndex() {
+  return (await loadLeetcodeIndex()).byId;
+}
+
+/** slug → problem (with premium flag) for every LeetCode problem; a missing slug means the link is dead. */
+export async function leetcodeBySlug() {
+  return (await loadLeetcodeIndex()).bySlug;
 }
 
 type LcQuestion = {

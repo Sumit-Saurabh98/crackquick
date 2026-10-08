@@ -15,6 +15,11 @@ const AppConfigSchema = new Schema(
     key: { type: String, default: "main", unique: true },
     /** One-click reasons reviewers can reject a suggestion with. */
     rejectReasons: { type: [String], default: DEFAULT_REJECT_REASONS },
+    /** The last full run of the catalog link check (Health report). */
+    lastLinkCheck: {
+      type: { startedAt: Date, finishedAt: Date, checked: Number, by: String },
+      default: null,
+    },
   },
   { timestamps: true },
 );

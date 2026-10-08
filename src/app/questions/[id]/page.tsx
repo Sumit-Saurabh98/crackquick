@@ -29,7 +29,10 @@ export default function QuestionDetailPage() {
   const practises = useCan("practice.track");
   const question = useApi<{ item: QuestionJSON }>(`/api/questions/${id}`);
   const history = useApi<{ items: AttemptJSON[] }>(practises ? `/api/questions/${id}/attempts` : null);
-  const [editing, setEditing] = useState<"" | "edit" | "suggest-edit">("");
+  // ?edit=1 (from the Health report) opens the editor straight away.
+  const [editing, setEditing] = useState<"" | "edit" | "suggest-edit">(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "1" ? "edit" : "",
+  );
   const [logging, setLogging] = useState(false);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -291,7 +294,7 @@ export default function QuestionDetailPage() {
       </section>
       {actionError ? <p className="text-sm text-warn">{actionError}</p> : null}
 
-      {editing ? (
+      {editing && (editing !== "edit" || canEdit) ? (
         <div className="grid gap-2">
           {editing === "suggest-edit" ? (
             <p className="text-sm text-muted">

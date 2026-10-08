@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { AuditList } from "@/components/AuditList";
 import { ErrorPanel } from "@/components/ErrorPanel";
+import { FeaturedCard } from "@/components/FeaturedCard";
 import { Spinner } from "@/components/Spinner";
 import { Toast } from "@/components/Toast";
 import { useCan } from "@/components/ViewerProvider";
@@ -43,6 +44,8 @@ export function AdminDashboard() {
         </Link>
       ) : null}
 
+      <FeaturedCard />
+
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {users ? (
           <>
@@ -56,6 +59,15 @@ export function AdminDashboard() {
         <Tile label="Added this week" value={catalog.addedWeek} href="/questions" />
         <Tile label="Retired" value={catalog.retired} hint={`${catalog.retiredMonth} in the last 30 days`} href="/questions?retired=1" />
         <Tile label="Attempts this week" value={catalog.attemptsWeek} hint="by all learners" />
+        {catalog.health ? (
+          <Tile
+            label="Catalog health"
+            value={catalog.health.withIssues}
+            hint={`questions to fix of ${catalog.health.total}`}
+            href="/health"
+            warn={catalog.health.withIssues > 0}
+          />
+        ) : null}
         {catalog.duplicates !== null ? (
           <Tile label="Possible duplicates" value={catalog.duplicates} href="/duplicates" warn={catalog.duplicates > 0} />
         ) : null}

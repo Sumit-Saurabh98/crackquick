@@ -91,9 +91,14 @@ function QuestionsView() {
         </div>
         <div className="flex flex-wrap gap-2">
           {canEdit ? (
-            <Link href="/duplicates" className="btn">
-              Find duplicates
-            </Link>
+            <>
+              <Link href="/health" className="btn">
+                Health
+              </Link>
+              <Link href="/duplicates" className="btn">
+                Find duplicates
+              </Link>
+            </>
           ) : null}
           <Link href="/questions/new" className="btn-primary">
             {canEdit ? "+ Add question" : "+ Suggest a question"}

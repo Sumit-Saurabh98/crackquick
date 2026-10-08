@@ -180,6 +180,12 @@ Window: today · week · month · quarter · half-year · year · all time. For 
 - **Saved rejection reasons** (`submissions.review`): one-click “Reject as: …” chips on each pending suggestion; a typed note is added after the reason. The list (defaults: Already in the catalog, Premium-only problem, Not a DSA problem, Link doesn't work, Not enough detail) is edited in Settings → Rejection reasons: add, move up, remove; up to 20.
 - **Duplicate finder** (`/duplicates`, “Find duplicates” on the catalog list, a dashboard tile; `catalog.edit`): pairs of live questions with the same title ignoring case, punctuation and leading numbers, the same title with different spacing, a one-letter typo in up to two words in the same place, or the same problem link. Words are compared in order, so “Directed” / “Undirected”, “Queue using Stacks” / “Stack using Queues” and numbered variants (“House Robber II”) don't match. Each side shows platform, learners, attempts, videos and companies. **Not duplicates** hides the pair for good. **Keep this one** (`catalog.delete` too) merges the other into it: every learner's progress and attempts move over (a learner with progress on both gets one record: the more recently solved schedule, the better status, added counts, both notes, starred if either), its videos / topics / companies are added, pending edit suggestions on it are closed, and it's retired with `mergedInto` set; both changes go in the audit log as “via duplicate merge”.
 
+## 5d. Catalog quality
+
+- **Health report** (`/health`, “Health” on the catalog list, a dashboard tile; `catalog.edit`): live questions grouped by what to fix: broken problem links, broken video links, LeetCode Premium only, only a YouTube *search* link (what import adds when it has no video), no video, no problem link, no pattern, no topics, no companies. Each group shows its count and expands to the questions; each row opens that question with its editor already open.
+- **Link check** (“Check links now” on the Health page): checks every problem and video link in the live catalog, 50 per request until done, with progress (≈30 s for ~570 links). LeetCode links are checked against LeetCode's full problem list (one request; also gives the Premium flag); YouTube links via YouTube's oEmbed (a removed video answers 404); other links by loading the page (404 / 410 = broken). Anything that can't be confirmed (blocked, timed out, private) is not reported as broken. GeeksforGeeks answers 200 even for missing problems, so a dead GFG link isn't detected. Results are kept per link; the page shows when the last full run finished.
+- **Question of the day** (Desk card for learners with their status and Log; dashboard card for admins with cycle progress): one question per calendar date, the same for everyone, picked automatically the first time anyone opens that day. Picks are random among live questions not yet featured in the current cycle, so **no question repeats until every live question has been featured**; then a new cycle starts. New questions join the current cycle's pool; a featured question that gets retired is replaced that day. The date is each user's own “today” (their timezone).
+
 ## 6. Non-functional
 
 - Secrets (`MONGODB_URI`, `BETTER_AUTH_SECRET`, OAuth keys) only in `.env.local` (git-ignored); `.env.example` lists them.
@@ -194,7 +200,7 @@ Gamification, leaderboards, email verification / password reset (needs an email 
 
 ## 8. Planned admin features (not built yet)
 
-Proposals, not current behaviour (except 8.1 and 8.2, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
+Proposals, not current behaviour (except 8.1, 8.2 and 8.3, now built). Priority: **P1** = most useful day to day; **P2** = moderation and catalog quality; **P3** = nice to have. Each lists the permission it would sit behind (§0); a new permission is named where none fits.
 
 ### 8.1 Highest value (P1): done
 
@@ -204,11 +210,9 @@ Built; see §5b (admin dashboard, per-question insight, audit log, bulk actions)
 
 Built; see §5c (suspension, rate limits, saved rejection reasons, duplicate finder).
 
-### 8.3 Catalog quality (P2)
+### 8.3 Catalog quality (P2): done (9, 11); 10 dropped
 
-9. **Health report**: questions missing a pattern, topics, companies or videos; dead problem or video links (checked periodically); premium-only problems. Each row links straight to its editor. *Permission*: `catalog.edit`.
-10. **Curated lists**: ordered collections such as “Blind 75”, “Top Google”, “Week 1 basics”, built from catalog questions. Users can follow a list; the Desk and Questions filters then show progress through it. *Permission*: new `lists.curate` (editor, admin) to create / edit; following needs `practice.track`.
-11. **Featured / question of the day**: an admin picks (or schedules) a question pinned on everyone's Desk for that day. *Permission*: `catalog.edit`.
+9 (health report) and 11 (question of the day, made automatic) are built; see §5d. 10 (curated lists) was dropped.
 
 ### 8.4 Users (P3)
 
