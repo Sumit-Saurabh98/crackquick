@@ -10,6 +10,7 @@ import { Markdown } from "@/components/Markdown";
 import { DifficultyPill, RevisionPill, StatusPill } from "@/components/Pills";
 import { QuestionForm } from "@/components/QuestionForm";
 import { QuestionChanges, QuestionInsight } from "@/components/QuestionInsight";
+import { ShuffleButton } from "@/components/ShuffleButton";
 import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
 import { useCan } from "@/components/ViewerProvider";
@@ -118,6 +119,7 @@ export default function QuestionDetailPage() {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
+          <ShuffleButton exclude={item._id} onEmpty={setToast} />
           {item.platformUrl ? (
             <a href={item.platformUrl} target="_blank" rel="noreferrer" className="btn">
               {item.platform} ↗

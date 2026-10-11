@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { BulkBar } from "@/components/BulkBar";
 import { QuestionRow } from "@/components/QuestionRow";
+import { ShuffleButton } from "@/components/ShuffleButton";
 import { Spinner } from "@/components/Spinner";
 import { attemptMessage, Toast } from "@/components/Toast";
 import { useCan } from "@/components/ViewerProvider";
@@ -90,6 +91,7 @@ function QuestionsView() {
           <p className="text-sm text-muted">{data ? `${data.total} matching` : <Spinner size="sm" />}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ShuffleButton query={query} onEmpty={setToast} />
           {canEdit ? (
             <>
               <Link href="/health" className="btn">

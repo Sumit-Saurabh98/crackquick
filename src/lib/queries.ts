@@ -1,4 +1,4 @@
-import type { PipelineStage } from "mongoose";
+import { Types, type PipelineStage } from "mongoose";
 import { PAGE_SIZE } from "./constants";
 import { addDays, startOfToday } from "./dates";
 import { listOptions } from "./options";
@@ -200,3 +200,19 @@ export async function questionFacets() {
 }
 
 export type Facets = Awaited<ReturnType<typeof questionFacets>>;
+
+/** A random question id the list would show for these filters (any page), or null if none match. */
+export async function randomQuestionId(search: URLSearchParams, viewer: Viewer, excludeId?: string) {
+  const filter = buildQuestionFilter(search, viewer);
+  const rows = await Question.aggregate<{ _id: unknown }>([
+    { $match: { retired: filter.retired } },
+    ...withProgress(viewer.id),
+    { $match: filter },
+    ...(excludeId && Types.ObjectId.isValid(excludeId)
+      ? [{ $match: { _id: { $ne: new Types.ObjectId(excludeId) } } }]
+      : []),
+    { $sample: { size: 1 } },
+    { $project: { _id: 1 } },
+  ]);
+  return rows[0] ? String(rows[0]._id) : null;
+}
