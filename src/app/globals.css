@@ -295,6 +295,234 @@ kbd {
   color: var(--muted);
 }
 
+/* Notes: rich text (TipTap), the same in the editor and the read view. */
+.rich-text {
+  font-size: 16px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.rich-text > * + * {
+  margin-top: 0.85em;
+}
+
+.rich-text h1,
+.rich-text h2,
+.rich-text h3,
+.rich-text h4,
+.rich-text h5,
+.rich-text h6 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  color: var(--brass-2);
+  line-height: 1.25;
+  margin-top: 1.4em;
+}
+
+.rich-text > :first-child {
+  margin-top: 0;
+}
+
+.rich-text h1 {
+  font-size: 2em;
+}
+.rich-text h2 {
+  font-size: 1.6em;
+}
+.rich-text h3 {
+  font-size: 1.3em;
+}
+.rich-text h4 {
+  font-size: 1.12em;
+}
+.rich-text h5 {
+  font-size: 1em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.rich-text h6 {
+  font-size: 0.9em;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.rich-text ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+
+.rich-text ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+
+.rich-text li > p {
+  margin: 0.15em 0;
+}
+
+.rich-text ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+
+.rich-text ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.6em;
+  align-items: flex-start;
+}
+
+.rich-text ul[data-type="taskList"] li > label {
+  margin-top: 0.3em;
+  flex-shrink: 0;
+}
+
+.rich-text ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.rich-text ul[data-type="taskList"] input[type="checkbox"] {
+  accent-color: var(--brass);
+  width: 1em;
+  height: 1em;
+}
+
+.rich-text ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.rich-text a {
+  color: var(--brass-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.rich-text code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.88em;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.rich-text pre {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+
+.rich-text pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85em;
+}
+
+.rich-text blockquote {
+  border-left: 3px solid var(--brass);
+  padding: 0.2em 0 0.2em 1em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 2em 0;
+}
+
+.rich-text mark {
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.rich-text img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.rich-text [data-resize-container] {
+  max-width: 100%;
+}
+
+.rich-text div[data-youtube-video] iframe {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 12px;
+}
+
+.rich-text .tableWrapper {
+  overflow-x: auto;
+}
+
+.rich-text table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.rich-text th,
+.rich-text td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  vertical-align: top;
+  position: relative;
+}
+
+.rich-text th {
+  background: var(--bg-2);
+  font-weight: 600;
+  text-align: left;
+}
+
+.rich-text .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--brass) 15%, transparent);
+  pointer-events: none;
+}
+
+.rich-text .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--brass);
+  pointer-events: none;
+}
+
+.rich-editor {
+  min-height: 55vh;
+}
+
+.rich-editor.resize-cursor {
+  cursor: col-resize;
+}
+
+.rich-editor .ProseMirror-selectednode {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+.rich-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  opacity: 0.6;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 /* Loading spinner: a brass arc over a faint ring. */
 .spinner {
   width: 40px;

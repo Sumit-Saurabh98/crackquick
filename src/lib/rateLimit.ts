@@ -9,6 +9,7 @@ const KEEP = 7 * DAY;
 export const LIMITS = {
   lookup: { max: 30, windowMs: HOUR, label: "LeetCode / GFG lookups", per: "hour" },
   suggest: { max: 20, windowMs: DAY, label: "suggestions", per: "day" },
+  upload: { max: 100, windowMs: DAY, label: "image uploads", per: "day" },
 } as const;
 
 export type LimitKind = keyof typeof LIMITS;
