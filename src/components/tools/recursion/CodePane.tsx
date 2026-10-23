@@ -15,12 +15,15 @@ export function CodePane({
   onRun,
   line,
   tone,
+  indent,
 }: {
   value: string;
   onChange: (v: string) => void;
   onRun: () => void;
   line: number | null;
   tone: "call" | "back";
+  /** One level of indentation: Tab inserts it, and Enter after ":" or "{" adds it. */
+  indent: string;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const [scroll, setScroll] = useState(0);
@@ -66,7 +69,17 @@ export function CodePane({
           } else if (e.key === "Tab" && !e.shiftKey) {
             e.preventDefault();
             const el = e.currentTarget;
-            el.setRangeText("  ", el.selectionStart, el.selectionEnd, "end");
+            el.setRangeText(indent, el.selectionStart, el.selectionEnd, "end");
+            onChange(el.value);
+          } else if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
+            // Keep the current line's indentation, one level deeper after a block opener.
+            e.preventDefault();
+            const el = e.currentTarget;
+            const before = el.value.slice(0, el.selectionStart);
+            const lineText = before.slice(before.lastIndexOf("\n") + 1);
+            const lead = /^[ \t]*/.exec(lineText)?.[0] ?? "";
+            const opens = /[:{[(]\s*$/.test(lineText);
+            el.setRangeText("\n" + lead + (opens ? indent : ""), el.selectionStart, el.selectionEnd, "end");
             onChange(el.value);
           }
         }}

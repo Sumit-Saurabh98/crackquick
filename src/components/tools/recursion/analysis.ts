@@ -1,4 +1,5 @@
 import { fmt, type RawNode, type RunResult } from "./engine";
+import type { Language } from "./runTypes";
 
 export type Status = "main" | "ok" | "dead" | "path" | "plain";
 
@@ -15,6 +16,7 @@ export type TNode = RawNode & {
 export type Trace = Omit<RunResult, "nodes"> & {
   nodes: TNode[];
   code: string;
+  language: Language;
   stats: { calls: number; answers: number; dead: number; maxDepth: number; repeated: number };
   paramOrder: string[];
   defaultVisible: Set<string>;
@@ -22,8 +24,15 @@ export type Trace = Omit<RunResult, "nodes"> & {
   multi: boolean;
 };
 
-export function analyse(run: RunResult, code: string): Trace {
-  const nodes = run.nodes.map((n) => ({ ...n, status: "plain" as Status, repeatOf: -1, repeats: 0, answerNo: 0 }));
+const MAIN: RawNode = {
+  id: 0, name: "main", isMain: true, args: [], params: [], parent: -1, children: [], depth: 0, edge: null,
+  notes: [], found: false, enter: -1, exit: 0, hasRet: false, ret: null, threw: false, line: null,
+};
+
+export function analyse(run: RunResult, code: string, language: Language): Trace {
+  // A run that never started (timeout, Python failed to load) still gets its main box.
+  const raw = run.nodes.length ? run.nodes : [MAIN];
+  const nodes = raw.map((n) => ({ ...n, status: "plain" as Status, repeatOf: -1, repeats: 0, answerNo: 0 }));
   const leads = new Array<boolean>(nodes.length).fill(false);
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
@@ -69,7 +78,7 @@ export function analyse(run: RunResult, code: string): Trace {
       if (set.size < 3) set.add(JSON.stringify(n.args[i]));
     });
   }
-  const show = (code.match(/\/\/\s*@show\s+([^\n]+)/) || [])[1];
+  const show = (code.match(/(?:\/\/|#)\s*@show\s+([^\n]+)/) || [])[1];
   let defaultVisible: Set<string>;
   if (show) defaultVisible = new Set(show.split(/[\s,]+/).filter((p) => vals.has(p)));
   else {
@@ -81,6 +90,7 @@ export function analyse(run: RunResult, code: string): Trace {
     ...run,
     nodes,
     code,
+    language,
     stats: { calls: nodes.length - 1, answers, dead, maxDepth, repeated },
     paramOrder: order,
     defaultVisible,

@@ -19,7 +19,11 @@ export type Snap =
   | { __x: 1 }
   | { __set: Snap[] }
   | { __map: [Snap, Snap][] }
-  | { __o: Record<string, Snap> };
+  | { __o: Record<string, Snap> }
+  /* Python values (see pyHarness.ts): shown as Python writes them. */
+  | { __r: string }
+  | { __tuple: Snap[] }
+  | { __dict: [Snap, Snap][] };
 
 export type RawNode = {
   id: number;
@@ -130,6 +134,9 @@ export function fmt(s: Snap): string {
   if ("__x" in s) return "…";
   if ("__set" in s) return "Set{" + s.__set.map(fmt).join(",") + "}";
   if ("__map" in s) return "Map{" + s.__map.map(([a, b]) => fmt(a) + ":" + fmt(b)).join(",") + "}";
+  if ("__r" in s) return s.__r;
+  if ("__tuple" in s) return "(" + s.__tuple.map(fmt).join(",") + (s.__tuple.length === 1 ? ",)" : ")");
+  if ("__dict" in s) return "{" + s.__dict.map(([a, b]) => fmt(a) + ":" + fmt(b)).join(",") + "}";
   return "{" + Object.entries(s.__o).map(([a, b]) => a + ":" + fmt(b)).join(",") + "}";
 }
 

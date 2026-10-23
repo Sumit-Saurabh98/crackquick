@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { api } from "@/lib/api";
 import { fmt, type RunResult } from "./engine";
 import { analyse, choicesTo, currentNode, layoutTree, narrate, sig, stackAt, trunc, type Narration, type TNode, type Trace } from "./analysis";
 import { CodePane } from "./CodePane";
 import { PRESETS } from "./presets";
+import { createPythonWorker } from "./pythonWorker";
+import { SERVER_LANGUAGES, type Language, type WorkerMessage, type WorkerRequest } from "./runTypes";
 import { TreeCanvas, type CanvasApi, type ViewOptions } from "./TreeCanvas";
 import s from "./visualizer.module.css";
 
@@ -17,7 +20,25 @@ const SPEEDS = [
   { ms: 160, label: "Fast" },
   { ms: 45, label: "Very fast" },
 ];
-const KEY = { code: "rtv:code", preset: "rtv:preset", guided: "rtv:guided", options: "rtv:options" };
+const KEY = {
+  code: (l: Language) => `rtv:code:${l}`,
+  preset: (l: Language) => `rtv:preset:${l}`,
+  language: "rtv:language",
+  guided: "rtv:guided",
+  options: "rtv:options",
+};
+
+const LANGUAGES: { id: Language; label: string }[] = [
+  { id: "javascript", label: "JavaScript" },
+  { id: "python", label: "Python" },
+  { id: "java", label: "Java" },
+  { id: "cpp", label: "C++" },
+];
+const isServer = (l: Language) => (SERVER_LANGUAGES as readonly string[]).includes(l);
+const LANGUAGE_IDS: Language[] = LANGUAGES.map((l) => l.id);
+
+const DEFAULT_PRESET = "subsets";
+const presetCode = (id: string, l: Language) => PRESETS.find((p) => p.id === id)?.code[l] ?? PRESETS[0].code[l];
 
 function load(key: string) {
   try {
@@ -34,30 +55,63 @@ function store(key: string, value: string) {
   }
 }
 
-/** Runs the code in a throwaway worker, so an endless loop is stopped instead of freezing the page. */
-function runInWorker(code: string): Promise<RunResult> {
+/**
+ * One worker per language, kept between runs so Python loads only once. A run that goes on too long
+ * (after any Python download) kills its worker, so an endless loop is stopped instead of freezing the page.
+ */
+const workers: Record<"javascript" | "python", Worker | null> = { javascript: null, python: null };
+let nextId = 1;
+
+/** Java and C++ compile and run on Compiler Explorer, through the app's API. */
+async function runOnServer(code: string, language: Language): Promise<RunResult> {
+  try {
+    const r = await api<{ result: RunResult }>("/api/tools/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language, code }),
+    });
+    return r.result;
+  } catch (e) {
+    return { nodes: [], events: [], logs: [], usedFound: false, error: e instanceof Error ? e.message : "The run failed.", traced: [] };
+  }
+}
+
+function runInWorker(code: string, language: Language, onLoading: () => void): Promise<RunResult> {
+  if (isServer(language)) return runOnServer(code, language);
   return new Promise((resolve) => {
-    const worker = new Worker(new URL("./recursion.worker.ts", import.meta.url));
-    const main = {
-      id: 0, name: "main", isMain: true, args: [], params: [], parent: -1, children: [], depth: 0, edge: null,
-      notes: [], found: false, enter: -1, exit: 0, hasRet: false, ret: null, threw: false, line: null,
+    const lang = language as "javascript" | "python";
+    const w = (workers[lang] ??=
+      language === "python" ? createPythonWorker() : new Worker(new URL("./recursion.worker.ts", import.meta.url)));
+    const id = nextId++;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const kill = () => {
+      w.terminate();
+      if (workers[lang] === w) workers[lang] = null;
     };
-    const fail = (error: string) => resolve({ nodes: [main], events: [], logs: [], usedFound: false, error, traced: [] });
-    const timer = setTimeout(() => {
-      worker.terminate();
-      fail(`Your code ran for more than ${RUN_TIMEOUT_MS / 1000} seconds and was stopped. Is there a loop that never ends, or a base case that's never reached?`);
-    }, RUN_TIMEOUT_MS);
-    worker.onmessage = (e: MessageEvent<RunResult>) => {
+    const done = (r: RunResult) => {
       clearTimeout(timer);
-      worker.terminate();
-      resolve(e.data);
+      w.removeEventListener("message", onMessage);
+      w.removeEventListener("error", onError);
+      resolve(r);
     };
-    worker.onerror = (e) => {
-      clearTimeout(timer);
-      worker.terminate();
+    const fail = (error: string) => done({ nodes: [], events: [], logs: [], usedFound: false, error, traced: [] });
+    const onMessage = (e: MessageEvent<WorkerMessage>) => {
+      const m = e.data;
+      if (m.id !== id) return;
+      if (m.type === "result") return done(m.result);
+      if (m.status === "loading-python") return onLoading();
+      timer = setTimeout(() => {
+        kill();
+        fail(`Your code ran for more than ${RUN_TIMEOUT_MS / 1000} seconds and was stopped. Is there a loop that never ends, or a base case that's never reached?`);
+      }, RUN_TIMEOUT_MS);
+    };
+    const onError = (e: ErrorEvent) => {
+      kill();
       fail(e.message || "The code could not run.");
     };
-    worker.postMessage({ code });
+    w.addEventListener("message", onMessage);
+    w.addEventListener("error", onError);
+    w.postMessage({ id, code } satisfies WorkerRequest);
   });
 }
 
@@ -77,10 +131,13 @@ const KIND_STYLE: Record<Narration["kind"], { tone: string; icon: string }> = {
 type Tab = "vars" | "answers" | "output" | "selected";
 
 export function RecursionVisualizer() {
-  const [code, setCode] = useState(PRESETS.find((p) => p.id === "subsets")!.code);
-  const [preset, setPreset] = useState("subsets");
+  const [language, setLanguage] = useState<Language>("javascript");
+  const [code, setCode] = useState(presetCode(DEFAULT_PRESET, "javascript"));
+  const [preset, setPreset] = useState(DEFAULT_PRESET);
   const [trace, setTrace] = useState<Trace | null>(null);
-  const [running, setRunning] = useState(false);
+  const [running, setRunning] = useState<false | "running" | "loading-python">(false);
+  /** Compiled languages this deployment can run (see /api/tools/run); null until known. */
+  const [serverLanguages, setServerLanguages] = useState<Language[] | null>(null);
   const [k, setK] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(420);
@@ -102,13 +159,14 @@ export function RecursionVisualizer() {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  const run = useCallback(async (src: string, presetId: string) => {
-    setRunning(true);
+  const run = useCallback(async (src: string, presetId: string, lang: Language) => {
+    setRunning("running");
     setPlaying(false);
-    store(KEY.code, src);
-    store(KEY.preset, presetId);
-    const result = await runInWorker(src);
-    const t = analyse(result, src);
+    store(KEY.code(lang), src);
+    store(KEY.preset(lang), presetId);
+    store(KEY.language, lang);
+    const result = await runInWorker(src, lang, () => setRunning("loading-python"));
+    const t = analyse(result, src, lang);
     setTrace(t);
     setVisible(new Set(t.defaultVisible));
     setSelected(null);
@@ -121,24 +179,38 @@ export function RecursionVisualizer() {
 
   // First load: last code (or the default example), saved view options, and the guide once.
   useEffect(() => {
-    const saved = load(KEY.code);
-    const savedPreset = load(KEY.preset) ?? "custom";
-    const src = saved ?? PRESETS.find((p) => p.id === "subsets")!.code;
+    let alive = true;
+    api<{ languages: Language[] }>("/api/tools/run")
+      .then((r) => alive && setServerLanguages(r.languages))
+      .catch(() => alive && setServerLanguages([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (serverLanguages === null) return;
+    const savedLang = load(KEY.language) as Language | null;
+    const lang: Language =
+      savedLang && LANGUAGE_IDS.includes(savedLang) && (!isServer(savedLang) || serverLanguages.includes(savedLang)) ? savedLang : "javascript";
+    // "rtv:code" is where the JavaScript-only version kept its code.
+    const saved = load(KEY.code(lang)) ?? (lang === "javascript" ? load("rtv:code") : null);
+    const savedPreset = load(KEY.preset(lang)) ?? load("rtv:preset") ?? "custom";
+    const src = saved ?? presetCode(DEFAULT_PRESET, lang);
     /* eslint-disable react-hooks/set-state-in-effect -- restoring saved state once on mount */
+    setLanguage(lang);
     try {
       const o = JSON.parse(load(KEY.options) ?? "null");
       if (o && typeof o === "object") setOptions({ ...DEFAULT_OPTIONS, ...o });
     } catch {
       // ignore a bad saved value
     }
-    if (saved) {
-      setCode(saved);
-      setPreset(PRESETS.some((p) => p.id === savedPreset) ? savedPreset : "custom");
-    }
+    setCode(src);
+    setPreset(saved ? (PRESETS.some((p) => p.id === savedPreset) ? savedPreset : "custom") : DEFAULT_PRESET);
     if (!load(KEY.guided)) setGuide(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-    void run(src, saved ? savedPreset : "subsets");
-  }, [run]);
+    void run(src, saved ? savedPreset : DEFAULT_PRESET, lang);
+  }, [run, serverLanguages]);
 
   const E = trace?.events.length ?? 0;
 
@@ -230,8 +302,21 @@ export function RecursionVisualizer() {
     const p = PRESETS.find((x) => x.id === id);
     if (!p) return;
     setPreset(id);
-    setCode(p.code);
-    void run(p.code, id);
+    setCode(p.code[language]);
+    void run(p.code[language], id, language);
+  }
+
+  /** Same example in the other language; your own code is kept per language. */
+  function pickLanguage(next: Language) {
+    if (next === language) return;
+    store(KEY.code(language), code);
+    store(KEY.preset(language), preset);
+    const src = preset !== "custom" ? presetCode(preset, next) : (load(KEY.code(next)) ?? presetCode(DEFAULT_PRESET, next));
+    const id = preset !== "custom" ? preset : load(KEY.code(next)) ? "custom" : DEFAULT_PRESET;
+    setLanguage(next);
+    setCode(src);
+    setPreset(id);
+    void run(src, id, next);
   }
 
   function closeGuide() {
@@ -261,7 +346,30 @@ export function RecursionVisualizer() {
         {/* left: code */}
         <section aria-label="Code" className="flex min-h-105 flex-col border-b border-line lg:min-h-0 lg:border-r lg:border-b-0">
           <div className="flex items-center gap-2 border-b border-line p-2.5">
-            <select value={preset} onChange={(e) => pickPreset(e.target.value)} aria-label="Example" className="field min-w-0 flex-1 py-1.5 text-sm">
+            <select
+              value={language}
+              onChange={(e) => pickLanguage(e.target.value as Language)}
+              disabled={Boolean(running)}
+              aria-label="Language"
+              className="field w-32 shrink-0 py-1.5 text-sm"
+            >
+              {LANGUAGES.map((l) => {
+                const off = isServer(l.id) && !serverLanguages?.includes(l.id);
+                return (
+                  <option key={l.id} value={l.id} disabled={off}>
+                    {l.label}
+                    {off ? " (soon)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+            <select
+              value={preset}
+              onChange={(e) => pickPreset(e.target.value)}
+              disabled={Boolean(running)}
+              aria-label="Example"
+              className="field min-w-0 flex-1 py-1.5 text-sm"
+            >
               {groups.map((g) => (
                 <optgroup key={g} label={g}>
                   {PRESETS.filter((p) => p.group === g).map((p) => (
@@ -273,12 +381,22 @@ export function RecursionVisualizer() {
               ))}
               <option value="custom">My code</option>
             </select>
-            <button onClick={() => run(code, preset)} disabled={running} className="btn-primary flex items-center gap-1.5" title="Run (Ctrl/⌘ + Enter)">
+            <button onClick={() => run(code, preset, language)} disabled={Boolean(running)} className="btn-primary flex items-center gap-1.5" title="Run (Ctrl/⌘ + Enter)">
               {running ? <span className="spinner spinner-sm" /> : "▶"} Run
             </button>
           </div>
+          {running === "loading-python" ? (
+            <p className="flex items-center gap-2 border-b border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200">
+              <span className="spinner spinner-sm" /> Loading Python in your browser. This happens once and takes a few seconds.
+            </p>
+          ) : null}
+          {running === "running" && isServer(language) ? (
+            <p className="flex items-center gap-2 border-b border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200">
+              <span className="spinner spinner-sm" /> Compiling and running your {language === "java" ? "Java" : "C++"} code. This takes a few seconds.
+            </p>
+          ) : null}
           {stale ? (
-            <button onClick={() => run(code, preset)} className="border-b border-brass/30 bg-brass/10 px-3 py-1.5 text-left text-xs text-brass2">
+            <button onClick={() => run(code, preset, language)} className="border-b border-brass/30 bg-brass/10 px-3 py-1.5 text-left text-xs text-brass2">
               Code changed. Press Run (⌘/Ctrl + Enter) to see the new tree.
             </button>
           ) : null}
@@ -288,7 +406,8 @@ export function RecursionVisualizer() {
               setCode(v);
               if (preset !== "custom") setPreset("custom");
             }}
-            onRun={() => run(code, preset)}
+            onRun={() => run(code, preset, language)}
+            indent={language === "javascript" ? "  " : "    "}
             line={codeLine}
             tone={ev?.type === "return" ? "back" : "call"}
           />
@@ -304,7 +423,7 @@ export function RecursionVisualizer() {
                 </>
               )
             ) : (
-              "Your code is saved in this browser. Helpers: found(), label(), note(), log()."
+              `Your code is saved in this browser. Helpers: found(), label(), note(), ${language === "python" ? "print()" : language === "javascript" ? "log()" : "and normal printing"}.`
             )}
           </p>
         </section>
@@ -317,7 +436,7 @@ export function RecursionVisualizer() {
             {trace && layout ? (
               <TreeCanvas ref={canvas} trace={trace} layout={layout} k={k} visible={visible} selected={selected} options={options} onSelect={(id) => (setSelected(id), setTab("selected"))} />
             ) : (
-              <div className="grid h-full place-items-center text-sm text-muted">{running ? "Running…" : "Run some code to see its tree."}</div>
+              <div className="grid h-full place-items-center text-sm text-muted">{running === "loading-python" ? "Loading Python…" : running ? "Running…" : "Run some code to see its tree."}</div>
             )}
             {trace ? <Stats trace={trace} /> : null}
             <div className="absolute top-2.5 right-3 flex flex-col items-end gap-1.5">
@@ -372,7 +491,7 @@ export function RecursionVisualizer() {
         </section>
       </div>
 
-      {guide ? <Guide onClose={closeGuide} /> : null}
+      {guide ? <Guide language={language} onClose={closeGuide} /> : null}
     </div>
   );
 }
@@ -719,7 +838,11 @@ function InfoTabs({
         ) : tab === "output" ? (
           <div className="grid gap-1 font-mono text-xs">
             {!trace.traced.length && !trace.error ? (
-              <p className="text-rose-300">No recursive function found. Declare it as function name(…) {"{ … }"} and make it call itself, or add {"// @trace name"}.</p>
+              <p className="text-rose-300">
+                {trace.language === "python"
+                  ? "No recursive function found. Write a def that calls itself (or self.name(…) in a class), or add # @trace name."
+                  : "No recursive function found. Declare it as function name(…) { … } and make it call itself, or add // @trace name."}
+              </p>
             ) : null}
             {trace.logs
               .filter((l) => l.step <= k)
@@ -776,7 +899,7 @@ function Variables({ trace, k, n }: { trace: Trace; k: number; n: TNode | null }
         {returning ? (
           <>
             <span className="text-sky-300">returns</span>
-            <span className="text-sky-300">{n.hasRet ? trunc(fmt(n.ret), 160) : "nothing (undefined)"}</span>
+            <span className="text-sky-300">{n.hasRet ? trunc(fmt(n.ret), 160) : { python: "nothing (None)", javascript: "nothing (undefined)", java: "nothing (void)", cpp: "nothing (void)" }[trace.language]}</span>
           </>
         ) : null}
       </div>
@@ -843,7 +966,7 @@ function Selected({ trace, id, visible, go }: { trace: Trace; id: number | null;
   );
 }
 
-function Guide({ onClose }: { onClose: () => void }) {
+function Guide({ language, onClose }: { language: Language; onClose: () => void }) {
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", esc);
@@ -904,22 +1027,50 @@ function Guide({ onClose }: { onClose: () => void }) {
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold text-ink">Writing your own code (JavaScript)</h3>
+            <h3 className="font-semibold text-ink">Writing your own code ({LANGUAGES.find((l) => l.id === language)?.label})</h3>
+            <p className="mt-1 text-xs text-muted">Pick the language in the dropdown next to the examples. Every language uses the same helpers.</p>
             <ul className="mt-1 list-disc space-y-1 pl-5 text-muted">
               <li>
-                Declare the function as <code className="text-brass2">function name(…) {"{ }"}</code>. Any function that calls itself is traced. For mutual recursion
-                add <code className="text-brass2">{"// @trace a, b"}</code>.
-              </li>
-              <li>
                 <code className="text-brass2">found()</code> marks the current call as an answer. <code className="text-brass2">label(&quot;take 2&quot;)</code> names the
-                next call&apos;s arrow (the choice). <code className="text-brass2">note(&quot;why&quot;)</code> adds a note to the current call.{" "}
-                <code className="text-brass2">log(…)</code> prints to Output.
+                next call&apos;s arrow (the choice). <code className="text-brass2">note(&quot;why&quot;)</code> adds a note to the current call. Printing goes to
+                Output.
               </li>
-              <li>
-                <code className="text-brass2">{"// @show start, path"}</code> chooses which parameters show in the boxes. You can also toggle them above the tree.
-              </li>
-              <li>Coming from Java or C++? Drop the types, use let/const, and arrays with push / pop.</li>
-              <li>Runs stop after 3,000 calls, 800 levels or 4 seconds, so keep inputs small.</li>
+              {language === "python" ? (
+                <>
+                  <li>
+                    Any <code className="text-brass2">def</code> that calls itself is traced, including nested helpers and LeetCode-style methods called as{" "}
+                    <code className="text-brass2">self.dfs(…)</code>. For mutual recursion add <code className="text-brass2"># @trace a, b</code>.
+                  </li>
+                  <li>
+                    <code className="text-brass2"># @show start, path</code> chooses which parameters show in the boxes.
+                  </li>
+                  <li>Python runs in your browser (Pyodide). The first run downloads it once; after that it&apos;s quick.</li>
+                </>
+              ) : language === "javascript" ? (
+                <>
+                  <li>
+                    Declare the function as <code className="text-brass2">function name(…) {"{ }"}</code>. Any function that calls itself is traced. For mutual
+                    recursion add <code className="text-brass2">{"// @trace a, b"}</code>.
+                  </li>
+                  <li>
+                    <code className="text-brass2">{"// @show start, path"}</code> chooses which parameters show in the boxes.
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    Write a full program with a <code className="text-brass2">main</code>
+                    {language === "java" ? " (in any class; a LeetCode-style Solution class next to it is fine)" : ""}. Every method or function that calls
+                    itself is traced{language === "cpp" ? ", including recursive lambdas" : ""}.
+                  </li>
+                  <li>
+                    <code className="text-brass2">{"// @show start, path"}</code> chooses which parameters show in the boxes.
+                  </li>
+                  <li>It compiles and runs on our server, so each run takes a few seconds.</li>
+                </>
+              )}
+              <li>You can also toggle parameters above the tree.</li>
+              <li>Runs stop after 3,000 calls or 800 levels, so keep inputs small.</li>
             </ul>
           </div>
         </div>

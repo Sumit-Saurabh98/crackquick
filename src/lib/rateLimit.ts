@@ -10,6 +10,7 @@ export const LIMITS = {
   lookup: { max: 30, windowMs: HOUR, label: "LeetCode / GFG lookups", per: "hour" },
   suggest: { max: 20, windowMs: DAY, label: "suggestions", per: "day" },
   upload: { max: 100, windowMs: DAY, label: "image uploads", per: "day" },
+  run: { max: 120, windowMs: HOUR, label: "Java / C++ runs", per: "hour" },
 } as const;
 
 export type LimitKind = keyof typeof LIMITS;
