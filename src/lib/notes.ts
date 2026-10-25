@@ -13,6 +13,7 @@ import {
 import { Note } from "@/models/Note";
 import { NoteCategory } from "@/models/NoteCategory";
 import { NoteImage } from "@/models/NoteImage";
+import { Progress } from "@/models/Progress";
 
 /** Uploads not used by any note are kept this long, so an unsaved draft doesn't lose its images. */
 const ORPHAN_GRACE_MS = 24 * 3600_000;
@@ -79,16 +80,24 @@ export async function noteInput(userId: string, body: Record<string, unknown>, p
   }
   if (!partial || "categoryId" in body) out.categoryId = await ownCategory(userId, body.categoryId);
   if (!partial || "content" in body) {
-    const content = body.content as { type?: unknown } | null;
-    if (!content || typeof content !== "object" || content.type !== "doc") throw new HttpError("The note's content is invalid.", 400);
-    if (Buffer.byteLength(JSON.stringify(content)) > MAX_CONTENT_BYTES) {
-      throw new HttpError("This note is too long (1 MB of text). Split it into two notes.", 400);
-    }
-    out.content = content;
-    out.text = String(body.text ?? "").slice(0, 200_000);
-    out.imageIds = [...imageIdsIn(content)].map((id) => new Types.ObjectId(id));
+    const doc = docInput(body.content, body.text, "This note is too long (1 MB of text). Split it into two notes.");
+    out.content = doc.content;
+    out.text = doc.text;
+    out.imageIds = doc.imageIds;
   }
   return out;
+}
+
+/** A validated editor document with its plain text and the uploaded images it shows; 400 if invalid. */
+export function docInput(raw: unknown, text: unknown, tooLong: string) {
+  const content = raw as { type?: unknown } | null;
+  if (!content || typeof content !== "object" || content.type !== "doc") throw new HttpError("The note's content is invalid.", 400);
+  if (Buffer.byteLength(JSON.stringify(content)) > MAX_CONTENT_BYTES) throw new HttpError(tooLong, 400);
+  return {
+    content: content as Record<string, unknown>,
+    text: String(text ?? "").slice(0, 200_000),
+    imageIds: [...imageIdsIn(content)].map((id) => new Types.ObjectId(id)),
+  };
 }
 
 /** Validated category fields: { name, color }. */
@@ -113,9 +122,13 @@ export function categoryConflict(e: unknown): never {
   throw e;
 }
 
-/** Deletes the user's uploads that no note shows any more (older than the grace period). */
+/** Deletes the user's uploads that no note (or question note) shows any more (older than the grace period). */
 export async function removeUnusedImages(userId: string) {
-  const used = await Note.distinct("imageIds", { userId });
+  const [inNotes, inQuestions] = await Promise.all([
+    Note.distinct("imageIds", { userId }),
+    Progress.distinct("notesImageIds", { userId }),
+  ]);
+  const used = [...inNotes, ...inQuestions];
   await NoteImage.deleteMany({
     uploadedBy: userId,
     _id: { $nin: used },

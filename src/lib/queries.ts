@@ -60,6 +60,7 @@ export function buildQuestionFilter(search: URLSearchParams, viewer: Viewer): Re
     filter.$or = [
       { title: rx },
       { notes: rx },
+      { notesText: rx },
       { topics: rx },
       { companies: rx },
       { pattern: rx },

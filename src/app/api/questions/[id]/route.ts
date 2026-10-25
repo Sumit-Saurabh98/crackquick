@@ -3,6 +3,7 @@ import { HttpError } from "@/lib/attempts";
 import { audit, auditEntry, snapshot } from "@/lib/audit";
 import { catalogInput, findByProblemUrl, withCanonicalNames } from "@/lib/catalog";
 import { checkId } from "@/lib/http";
+import { docInput, removeUnusedImages } from "@/lib/notes";
 import { serializeQuestion } from "@/lib/serialize";
 import { requirePermission, route } from "@/lib/viewer";
 import { ActivityEvent } from "@/models/Event";
@@ -25,8 +26,8 @@ export const GET = route<P>(async (_req, { viewer, params }) => {
 });
 
 /**
- * Needs practice.track, on their own progress: notes, isStarred, archived (hide for me), status (reset to todo /
- * in_progress; done only comes from logging an attempt, and resetting clears the schedule).
+ * Needs practice.track, on their own progress: notes (Markdown) or notesDoc + notesText (rich editor),
+ * isStarred, archived (hide for me), status (reset to todo / in_progress; done only comes from logging an attempt, and resetting clears the schedule).
  * Needs catalog.edit: catalog fields (title, link, videos, topics, companies, difficulty, pattern, …) and `retired`.
  */
 export const PATCH = route<P>(
@@ -49,11 +50,19 @@ export const PATCH = route<P>(
       await audit(auditEntry(viewer, q, before, snapshot(q.toObject())));
     }
 
-    const personal = ["notes", "isStarred", "archived", "status"].some((k) => body[k] !== undefined);
+    const personal = ["notes", "notesDoc", "isStarred", "archived", "status"].some((k) => body[k] !== undefined);
     if (personal) requirePermission(viewer, "practice.track");
     let p = personal ? await progressFor(viewer.id, q._id) : null;
     if (p) {
       if (body.notes !== undefined) p.notes = String(body.notes);
+      // Rich notes are stored beside the Markdown ones, which stay as they were.
+      if (body.notesDoc !== undefined) {
+        const doc = docInput(body.notesDoc, body.notesText, "These notes are too long (1 MB of text).");
+        p.notesDoc = doc.content;
+        p.notesText = doc.text;
+        p.notesImageIds = doc.imageIds;
+        p.markModified("notesDoc");
+      }
       if (body.isStarred !== undefined) p.isStarred = Boolean(body.isStarred);
       if (body.archived !== undefined) p.archived = Boolean(body.archived);
       if (body.status !== undefined && body.status !== p.status) {
@@ -64,6 +73,7 @@ export const PATCH = route<P>(
         p.revisionStage = 0;
       }
       await p.save();
+      if (body.notesDoc !== undefined) await removeUnusedImages(viewer.id);
     } else {
       p = await Progress.findOne({ userId: viewer.id, questionId: q._id });
     }

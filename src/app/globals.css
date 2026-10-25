@@ -559,3 +559,8 @@ kbd {
     opacity: 0.4;
   }
 }
+
+/* The editor inside a question's Notes card doesn't need a page-tall writing area. */
+.question-notes .rich-editor {
+  min-height: 30vh;
+}

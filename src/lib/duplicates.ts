@@ -10,6 +10,21 @@ import { Progress } from "@/models/Progress";
 import { Question } from "@/models/Question";
 import { Submission } from "@/models/Submission";
 
+type NotesDoc = { type: "doc"; content: unknown[] };
+
+/** A progress record's notes as an editor document: the rich ones, or the Markdown as plain paragraphs. */
+function richNotes(p: { notesDoc?: unknown; notes?: string | null }): NotesDoc {
+  if (p.notesDoc) return p.notesDoc as NotesDoc;
+  const paras = (p.notes ?? "").split(/\n{2,}/).filter((t) => t.trim());
+  return { type: "doc", content: paras.map((t) => ({ type: "paragraph", content: [{ type: "text", text: t }] })) };
+}
+
+/** Two documents one after the other, with a divider between them when both have content. */
+function joinDocs(a: NotesDoc, b: NotesDoc): NotesDoc {
+  const both = a.content?.length && b.content?.length;
+  return { type: "doc", content: [...(a.content ?? []), ...(both ? [{ type: "horizontalRule" }] : []), ...(b.content ?? [])] };
+}
+
 const STOP = new Set(["a", "an", "the", "of", "in", "to", "and", "for", "with", "on", "at", "by", "from", "is", "into", "or"]);
 /** Variant markers: "House Robber" and "House Robber II" are different problems. */
 const VARIANT = /^(i{1,3}|iv|v|vi{0,3}|ix|x|\d+)$/;
@@ -182,6 +197,12 @@ export async function mergeQuestions(viewer: Viewer, keepId: string, dropId: str
     k.timesSolved = (k.timesSolved ?? 0) + (p.timesSolved ?? 0);
     k.lapses = (k.lapses ?? 0) + (p.lapses ?? 0);
     k.totalMinutes = (k.totalMinutes ?? 0) + (p.totalMinutes ?? 0);
+    if (k.notesDoc || p.notesDoc) {
+      k.notesDoc = joinDocs(richNotes(k), richNotes(p));
+      k.notesText = [k.notesText || k.notes, p.notesText || p.notes].filter((n) => n?.trim()).join("\n\n");
+      k.notesImageIds = [...(k.notesImageIds ?? []), ...(p.notesImageIds ?? [])];
+      k.markModified("notesDoc");
+    }
     k.notes = [k.notes, p.notes].filter((n) => n?.trim()).join("\n\n---\n\n");
     k.isStarred = k.isStarred || p.isStarred;
     k.archived = k.archived && p.archived;

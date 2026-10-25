@@ -6,8 +6,8 @@ import { useCallback, useState } from "react";
 import { AttemptDialog } from "@/components/AttemptDialog";
 import { CompanyTags } from "@/components/CompanyTags";
 import { ErrorPanel } from "@/components/ErrorPanel";
-import { Markdown } from "@/components/Markdown";
 import { DifficultyPill, RevisionPill, StatusPill } from "@/components/Pills";
+import { QuestionNotes } from "@/components/notes/QuestionNotes";
 import { QuestionForm } from "@/components/QuestionForm";
 import { QuestionChanges, QuestionInsight } from "@/components/QuestionInsight";
 import { ShuffleButton } from "@/components/ShuffleButton";
@@ -35,7 +35,6 @@ export default function QuestionDetailPage() {
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "1" ? "edit" : "",
   );
   const [logging, setLogging] = useState(false);
-  const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [actionError, setActionError] = useState("");
@@ -154,50 +153,13 @@ export default function QuestionDetailPage() {
             ))}
           </section>
 
-          <section className="card p-5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="display text-xl">Notes</h2>
-              {notesDraft === null ? (
-                <button onClick={() => setNotesDraft(item.notes)} className="btn btn-sm">
-                  Edit notes
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setNotesDraft(null)} className="btn btn-sm">
-                    Cancel
-                  </button>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      act(async () => {
-                        await send(`/api/questions/${id}`, "PATCH", { notes: notesDraft });
-                        setNotesDraft(null);
-                      }, "Notes saved")
-                    }
-                    className="btn-primary btn-sm"
-                  >
-                    Save
-                  </button>
-                </div>
-              )}
-            </div>
-            {notesDraft !== null ? (
-              <textarea
-                autoFocus
-                rows={14}
-                value={notesDraft}
-                onChange={(e) => setNotesDraft(e.target.value)}
-                className="field mt-3 w-full font-mono text-[13px]"
-                placeholder={"## Approach\n\n## Pitfalls\n\n## Complexity\nO(n) time, O(1) space\n\n```python\n```"}
-              />
-            ) : item.notes ? (
-              <div className="mt-3">
-                <Markdown>{item.notes}</Markdown>
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted">No notes yet. Write the approach, the trick, pitfalls and complexity.</p>
-            )}
-          </section>
+          <QuestionNotes
+            q={item}
+            onSaved={() => {
+              setToast("Notes saved");
+              refresh();
+            }}
+          />
 
           <section className="card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">

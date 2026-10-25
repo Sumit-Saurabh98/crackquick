@@ -5,7 +5,7 @@ import { PracticeOnly } from "@/components/PracticeOnly";
 import { useEffect, useEffectEvent, useState } from "react";
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { GradePanel, type AttemptResult } from "@/components/GradePanel";
-import { Markdown } from "@/components/Markdown";
+import { hasNotes, QuestionNotesView } from "@/components/notes/QuestionNotes";
 import { DifficultyPill, RevisionPill } from "@/components/Pills";
 import { Spinner } from "@/components/Spinner";
 import { formatDate } from "@/lib/dates";
@@ -158,8 +158,8 @@ function Session({ items, onRestart }: { items: QuestionJSON[]; onRestart: () =>
 
         <div className="rounded-xl border border-dashed border-line p-4">
           {revealed ? (
-            q.notes ? (
-              <Markdown>{q.notes}</Markdown>
+            hasNotes(q) ? (
+              <QuestionNotesView q={q} />
             ) : (
               <p className="text-sm text-muted">No notes for this one. Add some after grading.</p>
             )

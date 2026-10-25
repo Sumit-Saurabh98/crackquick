@@ -16,7 +16,12 @@ const ProgressSchema = new Schema(
     confidence: { type: Number, default: 0 },
     timeSpentMinutes: { type: Number, default: 0 },
     totalMinutes: { type: Number, default: 0 },
+    /** The original Markdown notes. Kept as written; superseded by `notesDoc` once that is saved. */
     notes: { type: String, default: "" },
+    /** Notes from the rich editor (TipTap JSON, like a Note's content), its plain text and uploaded images. */
+    notesDoc: { type: Schema.Types.Mixed, default: null },
+    notesText: { type: String, default: "" },
+    notesImageIds: { type: [Schema.Types.ObjectId], default: [] },
     isStarred: { type: Boolean, default: false },
     /** Hidden from this user's lists and queue; history kept. */
     archived: { type: Boolean, default: false },
@@ -41,6 +46,8 @@ export const PROGRESS_DEFAULTS = {
   timeSpentMinutes: 0,
   totalMinutes: 0,
   notes: "",
+  notesDoc: null,
+  notesText: "",
   isStarred: false,
   archived: false,
 } as const;

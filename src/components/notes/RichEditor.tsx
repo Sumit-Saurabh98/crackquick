@@ -1,6 +1,6 @@
 "use client";
 
-import type { Editor } from "@tiptap/core";
+import type { Content, Editor } from "@tiptap/core";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
@@ -15,9 +15,9 @@ async function uploadImage(file: File): Promise<string> {
 
 /**
  * The note editor and its upload state. Images pasted, dropped or picked are uploaded first and then
- * inserted (never kept inline as base64, which would bloat the note).
+ * inserted (never kept inline as base64, which would bloat the note). `initial` is a document or HTML.
  */
-export function useNoteEditor(initial: Record<string, unknown> | null, onChange: () => void) {
+export function useNoteEditor(initial: Content | null, onChange: () => void) {
   const [uploading, setUploading] = useState(0);
   const [uploadError, setUploadError] = useState("");
   const extensions = useMemo(() => noteExtensions({ editable: true }), []);

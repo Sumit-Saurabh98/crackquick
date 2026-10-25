@@ -5,7 +5,10 @@ export type QuestionJSON = {
   platformUrl: string;
   externalId: string;
   videoUrls: string[];
+  /** The original Markdown notes. */
   notes: string;
+  /** Rich-editor notes; when set they replace `notes` for display. */
+  notesDoc: Record<string, unknown> | null;
   topics: string[];
   companies: string[];
   difficulty: "Easy" | "Medium" | "Hard";
@@ -49,6 +52,7 @@ const PROGRESS_KEYS = [
   "timeSpentMinutes",
   "totalMinutes",
   "notes",
+  "notesDoc",
   "isStarred",
   "archived",
 ] as const;
@@ -78,6 +82,7 @@ export function serializeQuestion(question: Record<string, unknown>, progress?: 
     externalId: String(doc.externalId ?? ""),
     videoUrls: videoLinks(doc),
     notes: String(doc.notes ?? ""),
+    notesDoc: doc.notesDoc && typeof doc.notesDoc === "object" ? (doc.notesDoc as Record<string, unknown>) : null,
     topics: Array.isArray(doc.topics) ? doc.topics.map(String) : [],
     companies: Array.isArray(doc.companies) ? doc.companies.map(String) : [],
     difficulty: (doc.difficulty as QuestionJSON["difficulty"]) || "Medium",
