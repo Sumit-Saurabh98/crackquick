@@ -168,6 +168,9 @@ export function instrumentJava(code: string, only?: string[]): JavaProgram {
     edits.push({ at: f.close, text: "} finally { __T.exit(); } " });
   }
   if (main) edits.push({ at: main.open + 1, text: " __T.utf8();" });
+  // LeetCode imports these for you, so its snippets use List / ArrayList / Map… without imports. They go
+  // at the start of line 1 so no line moves (not before a package line, which has to come first).
+  if (!/^\s*package\s/m.test(m)) edits.push({ at: 0, text: "import java.util.*; import java.util.function.*; import java.util.stream.*; " });
   for (const t of types.filter((t) => t.kind === "class")) {
     edits.push({
       at: t.close,
