@@ -26,7 +26,15 @@ const KEY = {
   language: "rtv:language",
   guided: "rtv:guided",
   options: "rtv:options",
+  layout: "rtv:layout",
 };
+
+/** Side panel sizes (px) and whether they're open; the tree gets the rest. */
+type PanelLayout = { codeOpen: boolean; sideOpen: boolean; codeW: number; sideW: number };
+const DEFAULT_LAYOUT: PanelLayout = { codeOpen: true, sideOpen: true, codeW: 380, sideW: 360 };
+const CODE_W = [260, 760] as const;
+const SIDE_W = [280, 640] as const;
+const clamp = (v: number, [lo, hi]: readonly [number, number]) => Math.min(hi, Math.max(lo, v));
 
 const LANGUAGES: { id: Language; label: string }[] = [
   { id: "javascript", label: "JavaScript" },
@@ -147,6 +155,7 @@ export function RecursionVisualizer() {
   const [options, setOptions] = useState<ViewOptions>(DEFAULT_OPTIONS);
   const [guide, setGuide] = useState(false);
   const [legend, setLegend] = useState(true);
+  const [panels, setPanels] = useState<PanelLayout>(DEFAULT_LAYOUT);
   const [top, setTop] = useState(57);
   const canvas = useRef<CanvasApi>(null);
 
@@ -180,7 +189,9 @@ export function RecursionVisualizer() {
   // First load: last code (or the default example), saved view options, and the guide once.
   useEffect(() => {
     let alive = true;
-    api<{ languages: Language[] }>("/api/tools/run")
+    // A plain fetch: if this optional check fails, Java / C++ just show as "soon" (no sign-in redirect).
+    fetch("/api/tools/run")
+      .then((r) => (r.ok ? (r.json() as Promise<{ languages: Language[] }>) : { languages: [] }))
       .then((r) => alive && setServerLanguages(r.languages))
       .catch(() => alive && setServerLanguages([]));
     return () => {
@@ -199,6 +210,12 @@ export function RecursionVisualizer() {
     const src = saved ?? presetCode(DEFAULT_PRESET, lang);
     /* eslint-disable react-hooks/set-state-in-effect -- restoring saved state once on mount */
     setLanguage(lang);
+    try {
+      const l = JSON.parse(load(KEY.layout) ?? "null");
+      if (l && typeof l === "object") setPanels({ ...DEFAULT_LAYOUT, ...l });
+    } catch {
+      // ignore a bad saved value
+    }
     try {
       const o = JSON.parse(load(KEY.options) ?? "null");
       if (o && typeof o === "object") setOptions({ ...DEFAULT_OPTIONS, ...o });
@@ -319,6 +336,15 @@ export function RecursionVisualizer() {
     void run(src, id, next);
   }
 
+  const changePanels = useCallback((change: Partial<PanelLayout>) => {
+    setPanels((p) => {
+      const next = { ...p, ...change, codeW: clamp(change.codeW ?? p.codeW, CODE_W), sideW: clamp(change.sideW ?? p.sideW, SIDE_W) };
+      store(KEY.layout, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+  const focus = !panels.codeOpen && !panels.sideOpen;
+
   function closeGuide() {
     setGuide(false);
     store(KEY.guided, "1");
@@ -326,65 +352,84 @@ export function RecursionVisualizer() {
 
   const groups = [...new Set(PRESETS.map((p) => p.group))];
 
+  const narrationCard = narration ? <NarrationCard narration={narration} k={k} /> : null;
+
   return (
-    <div className={`${s.root} -mx-4 -mt-6 -mb-20 flex flex-col bg-bg sm:-mx-6 lg:fixed lg:inset-x-0 lg:bottom-0 lg:z-10 lg:m-0`} style={{ top }}>
-      {/* title bar */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2.5">
-        <Link href="/tools" className="text-sm text-muted hover:text-ink">
-          ← Tools
+    <div
+      className={`${s.root} -mx-4 -mt-6 -mb-20 flex flex-col bg-bg sm:-mx-6 lg:fixed lg:inset-x-0 lg:bottom-0 lg:z-10 lg:m-0`}
+      style={{ top, "--code-w": `${panels.codeW}px`, "--side-w": `${panels.sideW}px` } as React.CSSProperties}
+    >
+      {/* one compact bar: what to run, and which panels to show */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+        <Link href="/tools" className="text-sm text-muted hover:text-ink" title="All tools">
+          ←
         </Link>
-        <div className="min-w-0">
-          <h1 className="display text-lg leading-tight text-brass2">Recursion & Backtracking Visualizer</h1>
-          <p className="hidden text-xs text-muted sm:block">Write a recursive function, run it, and watch every call go down and every backtrack come back up.</p>
-        </div>
-        <button onClick={() => setGuide(true)} className="btn btn-sm ml-auto">
-          ? How to read this
+        <h1 className="display mr-1 text-base leading-tight text-brass2">Recursion Visualizer</h1>
+        <select
+          value={language}
+          onChange={(e) => pickLanguage(e.target.value as Language)}
+          disabled={Boolean(running)}
+          aria-label="Language"
+          className="field w-34 shrink-0 py-1 text-sm"
+        >
+          {LANGUAGES.map((l) => {
+            const off = isServer(l.id) && !serverLanguages?.includes(l.id);
+            return (
+              <option key={l.id} value={l.id} disabled={off}>
+                {l.label}
+                {off ? " (soon)" : ""}
+              </option>
+            );
+          })}
+        </select>
+        <select
+          value={preset}
+          onChange={(e) => pickPreset(e.target.value)}
+          disabled={Boolean(running)}
+          aria-label="Example"
+          className="field min-w-0 flex-1 py-1 text-sm sm:max-w-72"
+        >
+          {groups.map((g) => (
+            <optgroup key={g} label={g}>
+              {PRESETS.filter((p) => p.group === g).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+          <option value="custom">My code</option>
+        </select>
+        <button onClick={() => run(code, preset, language)} disabled={Boolean(running)} className="btn-primary btn-sm flex items-center gap-1.5 py-1.5" title="Run (Ctrl/⌘ + Enter)">
+          {running ? <span className="spinner spinner-sm" /> : "▶"} Run
+        </button>
+        <span className="ml-auto hidden items-center gap-1 lg:flex">
+          <button className="chip" aria-pressed={panels.codeOpen} onClick={() => changePanels({ codeOpen: !panels.codeOpen })} title="Show or hide the code">
+            Code
+          </button>
+          <button className="chip" aria-pressed={panels.sideOpen} onClick={() => changePanels({ sideOpen: !panels.sideOpen })} title="Show or hide the explanation, call stack and details">
+            Panel
+          </button>
+          <button
+            className="chip"
+            aria-pressed={focus}
+            onClick={() => changePanels(focus ? { codeOpen: true, sideOpen: true } : { codeOpen: false, sideOpen: false })}
+            title="Give the whole screen to the tree"
+          >
+            ⛶ Focus
+          </button>
+        </span>
+        <button onClick={() => setGuide(true)} className="btn btn-sm max-lg:ml-auto" title="How to read the tree">
+          ? Guide
         </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(320px,400px)_1fr]">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* left: code */}
-        <section aria-label="Code" className="flex min-h-105 flex-col border-b border-line lg:min-h-0 lg:border-r lg:border-b-0">
-          <div className="flex items-center gap-2 border-b border-line p-2.5">
-            <select
-              value={language}
-              onChange={(e) => pickLanguage(e.target.value as Language)}
-              disabled={Boolean(running)}
-              aria-label="Language"
-              className="field w-32 shrink-0 py-1.5 text-sm"
-            >
-              {LANGUAGES.map((l) => {
-                const off = isServer(l.id) && !serverLanguages?.includes(l.id);
-                return (
-                  <option key={l.id} value={l.id} disabled={off}>
-                    {l.label}
-                    {off ? " (soon)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            <select
-              value={preset}
-              onChange={(e) => pickPreset(e.target.value)}
-              disabled={Boolean(running)}
-              aria-label="Example"
-              className="field min-w-0 flex-1 py-1.5 text-sm"
-            >
-              {groups.map((g) => (
-                <optgroup key={g} label={g}>
-                  {PRESETS.filter((p) => p.group === g).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-              <option value="custom">My code</option>
-            </select>
-            <button onClick={() => run(code, preset, language)} disabled={Boolean(running)} className="btn-primary flex items-center gap-1.5" title="Run (Ctrl/⌘ + Enter)">
-              {running ? <span className="spinner spinner-sm" /> : "▶"} Run
-            </button>
-          </div>
+        <section
+          aria-label="Code"
+          className={`flex h-[45vh] min-h-72 flex-col border-b border-line lg:h-auto lg:min-h-0 lg:w-(--code-w) lg:shrink-0 lg:border-b-0 ${panels.codeOpen ? "" : "lg:hidden"}`}
+        >
           {running === "loading-python" ? (
             <p className="flex items-center gap-2 border-b border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200">
               <span className="spinner spinner-sm" /> Loading Python in your browser. This happens once and takes a few seconds.
@@ -427,49 +472,32 @@ export function RecursionVisualizer() {
             )}
           </p>
         </section>
+        {panels.codeOpen ? <Splitter label="Resize the code panel" onResize={(dx, start) => changePanels({ codeW: start.codeW + dx })} panels={panels} reset={() => changePanels({ codeW: DEFAULT_LAYOUT.codeW })} /> : null}
 
-        {/* right: tree + controls + panels */}
-        <section aria-label="Recursion tree" className="grid min-h-0 grid-rows-[auto_minmax(380px,1fr)_auto_auto] lg:grid-rows-[auto_1fr_auto_200px]">
+        {/* middle: the tree gets all the height that's left */}
+        <section aria-label="Recursion tree" className="flex min-w-0 flex-1 flex-col">
           <ParamBar trace={trace} visible={visible} setVisible={setVisible} />
-
-          <div className="relative min-h-0">
+          <div className="relative h-[62vh] min-h-80 lg:h-auto lg:min-h-0 lg:flex-1">
             {trace && layout ? (
               <TreeCanvas ref={canvas} trace={trace} layout={layout} k={k} visible={visible} selected={selected} options={options} onSelect={(id) => (setSelected(id), setTab("selected"))} />
             ) : (
               <div className="grid h-full place-items-center text-sm text-muted">{running === "loading-python" ? "Loading Python…" : running ? "Running…" : "Run some code to see its tree."}</div>
             )}
             {trace ? <Stats trace={trace} /> : null}
-            <div className="absolute top-2.5 right-3 flex flex-col items-end gap-1.5">
-              <div className="flex gap-1">
-                <button className="btn btn-sm bg-bg2" onClick={() => canvas.current?.zoom(1.25)} aria-label="Zoom in">
-                  +
-                </button>
-                <button className="btn btn-sm bg-bg2" onClick={() => canvas.current?.zoom(0.8)} aria-label="Zoom out">
-                  −
-                </button>
-                <button className="btn btn-sm bg-bg2" onClick={() => canvas.current?.fit()}>
-                  Fit
-                </button>
-              </div>
-              <div className="flex max-w-88 flex-wrap justify-end gap-1">
-                {(
-                  [
-                    ["follow", "Follow call", "Move the view to the current call"],
-                    ["dim", "Focus path", "Fade everything that isn't on the call stack"],
-                    ["trails", "Return trail", "Keep a faint arrow for every return so far"],
-                    ["repeats", "Repeats", "Mark calls with the same arguments (work a memo could skip)"],
-                    ["motion", "Animations", "Turn animations on or off"],
-                  ] as const
-                ).map(([key, label, title]) => (
-                  <button key={key} className="chip bg-bg2" aria-pressed={options[key]} onClick={() => setOption(key)} title={title}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+            <div className="absolute top-2.5 right-3 flex items-start gap-1">
+              <button className="btn btn-sm bg-bg2" onClick={() => canvas.current?.zoom(1.25)} aria-label="Zoom in">
+                +
+              </button>
+              <button className="btn btn-sm bg-bg2" onClick={() => canvas.current?.zoom(0.8)} aria-label="Zoom out">
+                −
+              </button>
+              <button className="btn btn-sm bg-bg2" onClick={() => canvas.current?.fit()}>
+                Fit
+              </button>
+              <ViewMenu options={options} toggle={setOption} />
             </div>
             <Legend open={legend} onToggle={() => setLegend((o) => !o)} />
           </div>
-
           <Controls
             trace={trace}
             k={k}
@@ -481,14 +509,25 @@ export function RecursionVisualizer() {
             stepOut={stepOut}
             nextAnswer={nextAnswer}
             canStepOut={Boolean(cur && !cur.isMain && k < E)}
-            narration={narration}
           />
+          {/* With the side panel hidden (or on small screens) the explanation sits under the controls. */}
+          {narrationCard ? <div className={`border-t border-line px-3 py-2 ${panels.sideOpen ? "lg:hidden" : ""}`}>{narrationCard}</div> : null}
+        </section>
 
-          <div className="grid min-h-0 grid-cols-1 border-t border-line bg-bg2/40 md:grid-cols-[minmax(240px,1fr)_1.4fr]">
+        {panels.sideOpen ? <Splitter label="Resize the side panel" onResize={(dx, start) => changePanels({ sideW: start.sideW - dx })} panels={panels} reset={() => changePanels({ sideW: DEFAULT_LAYOUT.sideW })} /> : null}
+        {/* right: what's happening, the call stack, details */}
+        <aside
+          aria-label="Explanation and details"
+          className={`flex flex-col border-t border-line bg-bg2/40 lg:min-h-0 lg:w-(--side-w) lg:shrink-0 lg:border-t-0 ${panels.sideOpen ? "" : "lg:hidden"}`}
+        >
+          {narrationCard ? <div className="hidden shrink-0 border-b border-line p-3 lg:block">{narrationCard}</div> : null}
+          <div className="flex h-64 min-h-0 flex-col border-b border-line lg:h-auto lg:flex-1">
             <StackPanel trace={trace} k={k} visible={visible} onPick={(id) => (setSelected(id), setTab("selected"), canvas.current?.center(id))} />
+          </div>
+          <div className="flex h-80 min-h-0 flex-col lg:h-auto lg:flex-[1.3]">
             <InfoTabs trace={trace} k={k} tab={tab} setTab={setTab} visible={visible} selected={selected} go={go} cur={cur} />
           </div>
-        </section>
+        </aside>
       </div>
 
       {guide ? <Guide language={language} onClose={closeGuide} /> : null}
@@ -498,9 +537,95 @@ export function RecursionVisualizer() {
 
 /* ---------- pieces ---------- */
 
+/** A drag handle between panels (desktop). Double-click resets the size. */
+function Splitter({
+  label,
+  onResize,
+  panels,
+  reset,
+}: {
+  label: string;
+  onResize: (dx: number, start: PanelLayout) => void;
+  panels: PanelLayout;
+  reset: () => void;
+}) {
+  const drag = useRef<{ x: number; start: PanelLayout } | null>(null);
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      title={`${label} (drag, or double-click to reset)`}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { x: e.clientX, start: panels };
+      }}
+      onPointerMove={(e) => drag.current && onResize(e.clientX - drag.current.x, drag.current.start)}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onDoubleClick={reset}
+      className="group relative hidden w-1.5 shrink-0 cursor-col-resize touch-none bg-line/60 hover:bg-brass/50 lg:block"
+    >
+      <span className="absolute inset-y-0 -inset-x-1.5" />
+    </div>
+  );
+}
+
+/** The view toggles, folded into a menu so they don't cover the tree. */
+function ViewMenu({ options, toggle }: { options: ViewOptions; toggle: (key: keyof ViewOptions) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const items = [
+    ["follow", "Follow the current call", "Move the view to the current call"],
+    ["dim", "Focus on the call path", "Fade everything that isn't on the call stack"],
+    ["trails", "Keep return arrows", "A faint arrow for every return so far"],
+    ["repeats", "Mark repeated calls", "Same arguments as an earlier call (work a memo could skip)"],
+    ["motion", "Animations", "Turn animations on or off"],
+  ] as const;
+  return (
+    <div ref={ref} className="relative">
+      <button className="btn btn-sm bg-bg2" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        View ▾
+      </button>
+      {open ? (
+        <div className="card absolute top-9 right-0 z-20 grid w-60 gap-0.5 p-1.5 text-sm shadow-xl">
+          {items.map(([key, label, title]) => (
+            <button key={key} onClick={() => toggle(key)} title={title} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-white/5">
+              <span className={`grid size-4 place-items-center rounded border text-[10px] ${options[key] ? "border-brass bg-brass text-bg" : "border-line"}`}>
+                {options[key] ? "✓" : ""}
+              </span>
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NarrationCard({ narration, k }: { narration: Narration; k: number }) {
+  const style = KIND_STYLE[narration.kind];
+  return (
+    <div key={`${k}-${narration.kind}`} className={`${s.narr} flex gap-3 rounded-xl border px-3 py-2 ${style.tone}`} aria-live="polite">
+      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-current/15 text-sm font-bold">{style.icon}</span>
+      <div className="min-w-0 text-sm">
+        <p className="font-semibold">{narration.title}</p>
+        <p className="font-mono text-[12.5px] leading-relaxed text-ink/90">{narration.text}</p>
+        {narration.note ? <p className="mt-0.5 text-xs text-brass2">📝 {narration.note}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function ParamBar({ trace, visible, setVisible }: { trace: Trace | null; visible: Set<string>; setVisible: (v: Set<string>) => void }) {
   return (
-    <div className="flex min-h-11 flex-wrap items-center gap-1.5 border-b border-line px-3 py-2 text-xs">
+    <div className="flex min-h-9 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5 text-xs">
       <span className="text-muted">Show in boxes:</span>
       {!trace?.paramOrder.length ? <span className="text-muted/70">no parameters yet</span> : null}
       {trace?.paramOrder.map((p) => (
@@ -629,6 +754,7 @@ function Timeline({ trace, k, go }: { trace: Trace | null; k: number; go: (k: nu
   );
 }
 
+/** Playback in one row: transport, jumps, the timeline, step count and speed. */
 function Controls({
   trace,
   k,
@@ -640,7 +766,6 @@ function Controls({
   stepOut,
   nextAnswer,
   canStepOut,
-  narration,
 }: {
   trace: Trace | null;
   k: number;
@@ -652,66 +777,58 @@ function Controls({
   stepOut: () => void;
   nextAnswer: () => void;
   canStepOut: boolean;
-  narration: Narration | null;
 }) {
   const E = trace?.events.length ?? 0;
-  const style = narration ? KIND_STYLE[narration.kind] : KIND_STYLE.start;
-  const icon = "grid size-9 place-items-center rounded-full border border-line text-ink hover:border-brass/60 disabled:opacity-40";
+  const icon = "grid size-8 place-items-center rounded-full border border-line text-sm text-ink hover:border-brass/60 disabled:opacity-40";
   return (
-    <div className="grid gap-2 border-t border-line px-3 py-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <button className={icon} onClick={() => go(0)} disabled={!E || k === 0} aria-label="First step" title="First step (Home)">
-            ⏮
-          </button>
-          <button className={icon} onClick={() => go(k - 1)} disabled={!E || k === 0} aria-label="Step back" title="Step back (←)">
-            ◀
-          </button>
-          <button
-            className="grid h-9 min-w-24 place-items-center rounded-full bg-brass px-4 text-sm font-semibold text-bg hover:bg-brass2 disabled:opacity-40"
-            onClick={togglePlay}
-            disabled={!E}
-            title="Play / pause (space)"
-          >
-            {playing ? "❚❚ Pause" : k >= E && E ? "↻ Replay" : "▶ Play"}
-          </button>
-          <button className={icon} onClick={() => go(k + 1)} disabled={!E || k >= E} aria-label="Step forward" title="Step forward (→)">
-            ▶
-          </button>
-          <button className={icon} onClick={() => go(E)} disabled={!E || k >= E} aria-label="Last step" title="Last step (End)">
-            ⏭
-          </button>
-        </div>
+    <div className="grid gap-1.5 border-t border-line px-3 pt-1.5 pb-2">
+      <Timeline trace={trace} k={k} go={go} />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex items-center gap-1">
+        <button className={icon} onClick={() => go(0)} disabled={!E || k === 0} aria-label="First step" title="First step (Home)">
+          ⏮
+        </button>
+        <button className={icon} onClick={() => go(k - 1)} disabled={!E || k === 0} aria-label="Step back" title="Step back (←)">
+          ◀
+        </button>
+        <button
+          className="grid h-8 min-w-22 place-items-center rounded-full bg-brass px-3 text-sm font-semibold text-bg hover:bg-brass2 disabled:opacity-40"
+          onClick={togglePlay}
+          disabled={!E}
+          title="Play / pause (space)"
+        >
+          {playing ? "❚❚ Pause" : k >= E && E ? "↻ Replay" : "▶ Play"}
+        </button>
+        <button className={icon} onClick={() => go(k + 1)} disabled={!E || k >= E} aria-label="Step forward" title="Step forward (→)">
+          ▶
+        </button>
+        <button className={icon} onClick={() => go(E)} disabled={!E || k >= E} aria-label="Last step" title="Last step (End)">
+          ⏭
+        </button>
+      </div>
+      <div className="flex items-center gap-1">
         <button className="btn btn-sm" onClick={stepOut} disabled={!canStepOut} title="Jump to the moment the current call finishes">
-          ⤴ Finish this call
+          ⤴ Finish call
         </button>
         {trace?.usedFound ? (
           <button className="btn btn-sm border-good/40 text-good" onClick={nextAnswer} disabled={k >= E} title="Jump to the next answer">
             ✔ Next answer
           </button>
         ) : null}
-        <span className="ml-auto flex items-center gap-2 text-xs text-muted">
-          Step <b className="font-mono text-ink">{k}</b> / {E}
-          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Speed" className="field py-1 text-xs">
-            {SPEEDS.map((o) => (
-              <option key={o.ms} value={o.ms}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </span>
       </div>
-      <Timeline trace={trace} k={k} go={go} />
-      {narration ? (
-        <div key={`${k}-${narration.kind}`} className={`${s.narr} flex gap-3 rounded-xl border px-3 py-2 ${style.tone}`} aria-live="polite">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-current/15 text-sm font-bold">{style.icon}</span>
-          <div className="min-w-0 text-sm">
-            <p className="font-semibold">{narration.title}</p>
-            <p className="font-mono text-[12.5px] leading-relaxed text-ink/90">{narration.text}</p>
-            {narration.note ? <p className="mt-0.5 text-xs text-brass2">📝 {narration.note}</p> : null}
-          </div>
-        </div>
-      ) : null}
+      <span className="ml-auto flex items-center gap-2 text-xs text-muted">
+        <span className="whitespace-nowrap">
+          <b className="font-mono text-ink">{k}</b> / {E}
+        </span>
+        <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Speed" className="field py-1 text-xs">
+          {SPEEDS.map((o) => (
+            <option key={o.ms} value={o.ms}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </span>
+      </div>
     </div>
   );
 }
@@ -722,7 +839,7 @@ function StackPanel({ trace, k, visible, onPick }: { trace: Trace | null; k: num
   const returning = ev?.type === "return";
   const frames = [...chain].reverse();
   return (
-    <div className="flex min-h-0 flex-col border-b border-line md:border-r md:border-b-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
         <span className="eyebrow">Call stack</span>
         <span className="ml-auto text-xs text-muted">{chain.length ? `${chain.length - 1} waiting` : ""}</span>
@@ -781,18 +898,18 @@ function InfoTabs({
     ["vars", "Variables"],
     ["answers", `Answers${trace?.usedFound ? ` (${answers.length})` : ""}`],
     ["output", "Output"],
-    ["selected", "Selected call"],
+    ["selected", "Selected"],
   ];
   return (
-    <div className="flex min-h-0 flex-col">
-      <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line px-2">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div role="tablist" className="flex overflow-x-auto border-b border-line px-1">
         {tabs.map(([id, label]) => (
           <button
             key={id}
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className={`-mb-px shrink-0 border-b-2 px-3 py-1.5 text-xs ${tab === id ? "border-brass font-semibold text-ink" : "border-transparent text-muted hover:text-ink"}`}
+            className={`-mb-px shrink-0 border-b-2 px-2.5 py-1.5 text-xs ${tab === id ? "border-brass font-semibold text-ink" : "border-transparent text-muted hover:text-ink"}`}
           >
             {label}
           </button>

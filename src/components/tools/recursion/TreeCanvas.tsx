@@ -210,6 +210,22 @@ export function TreeCanvas({
 
   useImperativeHandle(ref, () => ({ fit, zoom: (f) => zoomAt(f, (svgRef.current?.clientWidth ?? 0) / 2, (svgRef.current?.clientHeight ?? 0) / 2), center }), [fit, zoomAt, center]);
 
+  // When the canvas changes size (panels shown, hidden or dragged), keep what was in the middle in the middle.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    let last = { w: el.clientWidth, h: el.clientHeight };
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (!w || !h || (w === last.w && h === last.h)) return;
+      view.current = { ...view.current, x: view.current.x + (w - last.w) / 2, y: view.current.y + (h - last.h) / 2 };
+      last = { w, h };
+      apply();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [apply]);
+
   // A new run (or new box sizes): start view.
   useEffect(() => {
     start();
