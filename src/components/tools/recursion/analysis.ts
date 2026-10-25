@@ -205,6 +205,7 @@ export function narrate(t: Trace, k: number, visible: Set<string>): Narration {
       kind: "start",
       title: "Ready",
       text: `Your code made ${plural(t.stats.calls, "call")} in total. Press Play (or →) to watch them happen one at a time.`,
+      note: t.notice ?? undefined,
     };
   }
   const ev = t.events[k - 1];

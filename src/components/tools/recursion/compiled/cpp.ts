@@ -1,4 +1,5 @@
-import { applyEdits, findFunctions, isRecursive, mask, returnsIn, type Edit, type FnDef } from "./scan";
+import { applyEdits, findFunctions, isRecursive, mask, matching, paramDecls, returnsIn, type Edit, type FnDef } from "./scan";
+import { CPP_NODES, cppLocalType, cppSample } from "./samples";
 import { LIMIT, MAX_DEPTH, MARK } from "./protocol";
 
 /**
@@ -47,7 +48,10 @@ template <class T> std::string J(const T& v) {
     if (!std::isfinite((double)v)) return raw(std::to_string(v));
     std::ostringstream o; o << std::setprecision(15) << v; return o.str();
   } else if constexpr (std::is_convertible_v<const U&, std::string_view>) return q(std::string_view(v));
-  else if constexpr (std::is_pointer_v<U>) return raw(v ? "pointer" : "nullptr");
+  else if constexpr (std::is_pointer_v<U>) {
+    if constexpr (requires { v->val; }) return v ? raw("node(" + J(v->val) + ")") : raw("null");  // tree / list nodes
+    else return raw(v ? "pointer" : "nullptr");
+  }
   else if constexpr (is_pair<U>::value) return "{\"__tuple\":[" + J(v.first) + "," + J(v.second) + "]}";
   else if constexpr (MapLike<U>) {
     std::string o = "{\"__dict\":["; int i = 0;
@@ -97,7 +101,8 @@ template <class... A> void note(const A&... a) { __rtv::emit("{\"t\":\"n\",\"x\"
 template <class A> void label(const A& a) { __rtv::pending = __rtv::text(a); __rtv::has_pending = true; }
 `;
 
-export type CppProgram = { source: string; traced: string[] };
+/** `prelude`: declarations the code needs before it (TreeNode / ListNode); `notice`: a main was written for it. */
+export type CppProgram = { source: string; traced: string[]; prelude: string; notice: string | null };
 
 /** Where a statement starts on this line, if it's safe to put `__rtv::L(n);` in front of it. */
 function statementStart(m: string, lineStart: number, lineEnd: number): number | null {
@@ -149,5 +154,59 @@ export function instrumentCpp(src: string, only?: string[]): CppProgram {
       lineNo++;
     }
   }
-  return { source: applyEdits(src, edits), traced: [...new Set(traced.map((f) => f.name))] };
+  const driver = /\bint\s+main\s*\(/.test(m) ? null : leetCodeDriver(m, fns);
+  // LeetCode snippets have no #include and rely on its implicit `using namespace std;`.
+  const leetCodeStyle = !/^\s*#\s*include/m.test(src) && !/\busing\s+namespace\s+std\b/.test(m);
+  const prelude = [
+    leetCodeStyle ? "using namespace std;" : "",
+    ...(Object.keys(CPP_NODES) as (keyof typeof CPP_NODES)[])
+      .filter((n) => new RegExp(`\\b${n}\\b`).test(m) && !new RegExp(`\\b(struct|class)\\s+${n}\\b`).test(m))
+      .map((n) => CPP_NODES[n]),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return {
+    source: applyEdits(src, edits) + (driver ? `\n${driver.code}\n` : ""),
+    traced: [...new Set(traced.map((f) => f.name))],
+    prelude,
+    notice: driver?.notice ?? null,
+  };
+}
+
+/**
+ * LeetCode-style code (class Solution, no main): a main that calls its public method with sample
+ * input, the way LeetCode runs it. It goes after the user's code, so their line numbers don't move.
+ */
+function leetCodeDriver(m: string, fns: FnDef[]) {
+  const classes = [...m.matchAll(/\b(class|struct)\s+([A-Za-z_]\w*)\s*(?::[^{;]*)?\{/g)].map((x) => {
+    const open = x.index + x[0].length - 1;
+    return { kind: x[1], name: x[2], open, close: matching(m, open) };
+  });
+  const cls = classes.find((c) => c.name === "Solution") ?? classes.find((c) => !/^(TreeNode|ListNode)$/.test(c.name));
+  if (!cls) throw new Error("Add a main() that calls your function.");
+  const methods = fns
+    .filter((f) => !f.lambda && f.nameAt > cls.open && f.close < cls.close && f.name !== cls.name)
+    .filter((f) => {
+      let depth = 0;
+      for (let i = cls.open; i < f.nameAt; i++) depth += m[i] === "{" ? 1 : m[i] === "}" ? -1 : 0;
+      return depth === 1;
+    })
+    .map((f) => {
+      const before = m.slice(cls.open, f.nameAt);
+      const access = [...before.matchAll(/\b(public|private|protected)\s*:/g)].pop()?.[1] ?? (cls.kind === "struct" ? "public" : "private");
+      const start = Math.max(m.lastIndexOf(";", f.nameAt), m.lastIndexOf("}", f.nameAt), m.lastIndexOf("{", f.nameAt), m.lastIndexOf(":", f.nameAt)) + 1;
+      return { f, access, head: m.slice(start, f.nameAt) };
+    });
+  const target = methods.find((x) => x.access === "public") ?? methods[0];
+  if (!target) throw new Error(`Add a method to ${cls.name}, and a main() that calls it.`);
+  const decls = paramDecls(target.f.paramList);
+  const locals = decls.map((d, i) => `${cppLocalType(d.type)} __a${i} = ${cppSample(d.type, d.name)};`).join(" ");
+  const shown = decls.map((d) => cppSample(d.type, d.name)).join(", ");
+  const isStatic = /\bstatic\b/.test(target.head);
+  const call = `${isStatic ? `${cls.name}::` : "__s."}${target.f.name}(${decls.map((_, i) => `__a${i}`).join(", ")})`;
+  const run = /\bvoid\s*$/.test(target.head.trim()) ? `${call};` : `auto __r = ${call}; std::cout << "Result: " << __rtv::text(__r) << "\\n";`;
+  return {
+    code: `int main() { ${isStatic ? "" : `${cls.name} __s; `}${locals} ${run} }`,
+    notice: `No main(), so it ran ${cls.name}().${target.f.name}(${shown}) with sample input, the way LeetCode would. Add a main() to use your own input.`,
+  };
 }

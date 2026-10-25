@@ -954,6 +954,7 @@ function InfoTabs({
           )
         ) : tab === "output" ? (
           <div className="grid gap-1 font-mono text-xs">
+            {trace.notice ? <p className="rounded-lg bg-sky-400/10 px-2 py-1.5 font-sans text-sky-200">ℹ {trace.notice}</p> : null}
             {!trace.traced.length && !trace.error ? (
               <p className="text-rose-300">
                 {trace.language === "python"

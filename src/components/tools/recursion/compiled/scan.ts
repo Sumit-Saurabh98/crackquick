@@ -17,6 +17,9 @@ export type FnDef = {
   lambda: boolean;
   /** For C++ `auto f = [&](auto&& self, …)`: the parameter used to recurse; it isn't shown. */
   selfParam: string | null;
+  /** Index of the name, and the (masked) text between the parentheses. */
+  nameAt: number;
+  paramList: string;
 };
 
 const KEYWORDS = new Set([
@@ -108,7 +111,7 @@ export function matching(m: string, at: number): number {
 }
 
 /** Splits a parameter list on top-level commas (ignoring those inside <>, (), [], {}). */
-function splitParams(s: string) {
+export function splitParams(s: string) {
   const parts: string[] = [];
   let depth = 0;
   let cur = "";
@@ -122,6 +125,21 @@ function splitParams(s: string) {
   }
   if (cur.trim()) parts.push(cur);
   return parts;
+}
+
+/** Each parameter as { type, name } (type without the name, default value or annotations). */
+export function paramDecls(list: string): { type: string; name: string }[] {
+  return splitParams(list)
+    .map((p) => {
+      const t = p.replace(/=[\s\S]*$/, "").replace(/@\w+(\([^)]*\))?/g, "").replace(/\bfinal\b/g, "").trim();
+      const arr = /(\[\s*\])+\s*$/.exec(t); // int a[] → type int[]
+      const body = arr ? t.slice(0, arr.index).trim() : t;
+      const m = /([A-Za-z_$][\w$]*)\s*$/.exec(body);
+      if (!m) return null;
+      const type = (body.slice(0, m.index) + (arr ? arr[0].replace(/\s/g, "") : "")).replace(/\s+/g, " ").trim();
+      return type ? { type, name: m[1] } : null;
+    })
+    .filter((d): d is { type: string; name: string } => d !== null);
 }
 
 /** The variable name of each parameter (null when unnamed). */
@@ -167,7 +185,16 @@ export function findFunctions(m: string, cpp: boolean): FnDef[] {
     const close = matching(m, j);
     if (close < 0) continue;
     const params = paramNames(m.slice(po + 1, pc));
-    out.push({ name, params: params.filter((p): p is string => p !== null), open: j, close, lambda: false, selfParam: null });
+    out.push({
+      name,
+      params: params.filter((p): p is string => p !== null),
+      open: j,
+      close,
+      lambda: false,
+      selfParam: null,
+      nameAt: x.index,
+      paramList: m.slice(po + 1, pc),
+    });
   }
   if (cpp) {
     const lam = /([A-Za-z_]\w*)\s*=\s*\[[^\]]*\]\s*\(/g;
@@ -185,7 +212,7 @@ export function findFunctions(m: string, cpp: boolean): FnDef[] {
       const first = params[0];
       const body = m.slice(j + 1, close);
       const selfParam = first && /auto/.test(m.slice(po + 1, pc).split(",")[0]) && new RegExp(`\\b${first}\\s*\\(`).test(body) ? first : null;
-      out.push({ name: x[1], params: selfParam ? params.slice(1) : params, open: j, close, lambda: true, selfParam });
+      out.push({ name: x[1], params: selfParam ? params.slice(1) : params, open: j, close, lambda: true, selfParam, nameAt: x.index, paramList: m.slice(po + 1, pc) });
     }
   }
   return out;

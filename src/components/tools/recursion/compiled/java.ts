@@ -1,4 +1,5 @@
-import { applyEdits, findFunctions, isRecursive, mask, matching, returnsIn, type Edit } from "./scan";
+import { applyEdits, findFunctions, isRecursive, mask, matching, paramDecls, returnsIn, type Edit, type FnDef } from "./scan";
+import { JAVA_NODES, javaSample } from "./samples";
 import { LIMIT, MAX_DEPTH, MARK } from "./protocol";
 
 /**
@@ -98,7 +99,14 @@ final class __T {
         }
         return b.append(set ? "]}" : "]").toString();
       }
-      return raw(String.valueOf(o));
+      // Tree / list nodes: show the value, not ClassName@hash.
+      try {
+        java.lang.reflect.Field f = o.getClass().getDeclaredField("val");
+        f.setAccessible(true);
+        return raw("node(" + f.get(o) + ")");
+      } catch (Exception e) {
+        return raw(String.valueOf(o));
+      }
     } finally {
       seen.remove(o);
     }
@@ -106,7 +114,8 @@ final class __T {
 }
 `;
 
-export type JavaProgram = { source: string; traced: string[] };
+/** `notice`: set when the program had no main and one was written for it. */
+export type JavaProgram = { source: string; traced: string[]; notice: string | null };
 
 /** Top-level type declarations: [kind, name, body open, body close]. */
 function topLevelTypes(m: string) {
@@ -140,12 +149,12 @@ export function instrumentJava(code: string, only?: string[]): JavaProgram {
   const m = mask(code, false);
   const types = topLevelTypes(m);
   const mainAt = /\bstatic\s+(?:final\s+)?void\s+main\s*\(/.exec(m)?.index ?? -1;
-  const mainType = types.find((t) => t.open < mainAt && mainAt < t.close);
-  if (!mainType) throw new Error("Add a main method (public static void main(String[] args)) that calls your function.");
+  const hasMain = types.some((t) => t.open < mainAt && mainAt < t.close);
   let src = code;
   for (const t of types) if (t.publicAt >= 0) src = src.slice(0, t.publicAt) + "      " + src.slice(t.publicAt + 6);
 
   const all = findFunctions(m, false);
+  const driver = hasMain ? null : leetCodeDriver(m, types, all);
   const fns = all.filter((f) => f.name !== "main");
   const main = all.find((f) => f.name === "main" && f.open > mainAt);
   const traced = only?.length ? fns.filter((f) => only.includes(f.name)) : fns.filter((f) => isRecursive(m, f));
@@ -165,9 +174,46 @@ export function instrumentJava(code: string, only?: string[]): JavaProgram {
       text: " static void found(Object... a) { __T.found(a); } static void note(Object... a) { __T.note(a); } static void label(Object t) { __T.label(t); } ",
     });
   }
-  const source = applyEdits(src, edits) + "\n" + RUNTIME;
+  // LeetCode provides TreeNode / ListNode; add them when the code uses them without defining them.
+  const extra = (Object.keys(JAVA_NODES) as (keyof typeof JAVA_NODES)[])
+    .filter((n) => new RegExp(`\\b${n}\\b`).test(m) && !types.some((t) => t.name === n))
+    .map((n) => JAVA_NODES[n]);
+  const source = [applyEdits(src, edits), ...extra, driver?.code ?? "", RUNTIME].join("\n");
   return {
     source,
     traced: [...new Set(traced.map((f) => f.name))],
+    notice: driver?.notice ?? null,
+  };
+}
+
+/**
+ * LeetCode-style code (a Solution class, no main): a main that calls its public method with sample
+ * input, the way LeetCode runs it. It goes after the user's code, so their line numbers don't move.
+ */
+function leetCodeDriver(m: string, types: ReturnType<typeof topLevelTypes>, fns: FnDef[]) {
+  const classes = types.filter((t) => t.kind === "class");
+  const cls = classes.find((t) => t.name === "Solution") ?? classes[0];
+  if (!cls) throw new Error("Add a class with your method, and a main method (public static void main(String[] args)) that calls it.");
+  // Methods declared directly in the class (not in nested classes), with their modifiers.
+  const methods = fns
+    .filter((f) => f.nameAt > cls.open && f.close < cls.close && f.name !== cls.name)
+    .filter((f) => {
+      let depth = 0;
+      for (let i = cls.open; i < f.nameAt; i++) depth += m[i] === "{" ? 1 : m[i] === "}" ? -1 : 0;
+      return depth === 1;
+    })
+    .map((f) => {
+      const start = Math.max(m.lastIndexOf(";", f.nameAt), m.lastIndexOf("}", f.nameAt), m.lastIndexOf("{", f.nameAt)) + 1;
+      return { f, head: m.slice(start, f.nameAt) };
+    });
+  const target = methods.find((x) => /\bpublic\b/.test(x.head)) ?? methods.find((x) => !/\bprivate\b/.test(x.head)) ?? methods[0];
+  if (!target) throw new Error(`Add a method to ${cls.name}, and a main method (public static void main(String[] args)) that calls it.`);
+  const args = paramDecls(target.f.paramList).map((d) => javaSample(d.type, d.name)).join(", ");
+  const recv = /\bstatic\b/.test(target.head) ? cls.name : `new ${cls.name}()`;
+  const call = `${recv}.${target.f.name}(${args})`;
+  const body = /\bvoid\s*$/.test(target.head.trim()) ? `${call};` : `Object __r = ${call}; System.out.println("Result: " + __T.show(__r));`;
+  return {
+    code: `class __Main { public static void main(String[] args) { __T.utf8(); ${body} } }`,
+    notice: `No main method, so it ran ${call} with sample input, the way LeetCode would. Add a main to use your own input.`,
   };
 }

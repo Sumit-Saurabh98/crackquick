@@ -57,6 +57,8 @@ export type RunResult = {
   usedFound: boolean;
   error: string | null;
   traced: string[];
+  /** Something the user should know about how it ran (e.g. a main was written for LeetCode-style code). */
+  notice?: string | null;
 };
 
 class LimitError extends Error {}

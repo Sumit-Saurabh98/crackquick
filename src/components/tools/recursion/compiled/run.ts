@@ -14,17 +14,17 @@ import { parseRun, type RunnerOutput } from "./protocol";
 
 export const runnerConfigured = () => process.env.CODE_RUNNER === "godbolt";
 
-type Program = { language: ServerLanguage; source: string; traced: string[] };
+type Program = { language: ServerLanguage; source: string; prelude: string; traced: string[]; notice: string | null };
 
 const NONE = ["\u0000"]; // trace nothing: the program with only the helpers added
 
 function program(language: ServerLanguage, code: string, plain: boolean): Program {
   if (language === "java") {
     const j = instrumentJava(code, plain ? NONE : undefined);
-    return { language, source: j.source, traced: j.traced };
+    return { language, source: j.source, prelude: "", traced: j.traced, notice: j.notice };
   }
-  const c = plain ? { source: code, traced: [] } : instrumentCpp(code);
-  return { language, source: c.source, traced: c.traced };
+  const c = instrumentCpp(code, plain ? NONE : undefined);
+  return { language, source: c.source, prelude: c.prelude, traced: c.traced, notice: c.notice };
 }
 
 type GodboltLines = { text: string }[] | undefined;
@@ -42,7 +42,7 @@ async function runOnGodbolt(p: Program): Promise<RunnerOutput> {
   const cpp = p.language === "cpp";
   const compiler = cpp ? process.env.GODBOLT_CPP || "g142" : process.env.GODBOLT_JAVA || "java2102";
   // C++: the runtime goes first, then #line 1 so the user's code keeps its own line numbers.
-  const source = cpp ? `${CPP_RUNTIME}\n#line 1\n${p.source}` : p.source;
+  const source = cpp ? `${CPP_RUNTIME}\n${p.prelude}\n#line 1\n${p.source}` : p.source;
   const d = await post(
     `https://godbolt.org/api/compiler/${compiler}/compile`,
     {
@@ -71,14 +71,20 @@ async function runOnGodbolt(p: Program): Promise<RunnerOutput> {
   };
 }
 
-/** Compiler / runtime messages with plain line numbers and without the tracer's own stack frames. */
-function describe(language: ServerLanguage, out: RunnerOutput) {
+/**
+ * Compiler / runtime messages with plain line numbers and without the tracer's own stack frames or
+ * compiler-internal paths. GCC quotes source lines by their position in the file it compiled (which
+ * has the tracer's runtime on top), so quoted `  12 | …` lines are replaced with the user's own line 12.
+ */
+function describe(language: ServerLanguage, out: RunnerOutput, code: string) {
+  const own = code.split("\n");
   let text = out.stderr
     .replace(/\u001b\[[0-9;]*[mK]/g, "") // terminal colours
     .replace(/<source>:(\d+):(\d+:)?/g, "line $1:")
     .replace(/<source>: /g, "")
     .split("\n")
-    .filter((l) => !/__T\.|__rtv|rtv\.hpp|^In file included from/.test(l))
+    .map((l) => (language === "cpp" ? l.replace(/^(\s*)(\d+)( \| )(.*)$/, (all, sp, n, bar) => (own[Number(n) - 1] !== undefined ? sp + n + bar + own[Number(n) - 1] : all)) : l))
+    .filter((l) => !/__T\.|__rtv|rtv\.hpp|^In file included from|^\s+from \/|\/cefs\/|note: suggested alternative/.test(l))
     .slice(0, 25)
     .join("\n")
     .trim();
@@ -103,14 +109,15 @@ export async function runCompiled(language: ServerLanguage, code: string): Promi
     return fail(e instanceof Error ? e.message : "Couldn't read this code.");
   }
   const out = await run(traced);
-  if (out.exitCode !== 101) return parseRun(out, traced.traced, lines, () => describe(language, out));
+  if (out.exitCode !== 101) return { ...parseRun(out, traced.traced, lines, () => describe(language, out, code)), notice: traced.notice };
 
   // Didn't compile: is it the user's code, or our additions?
   const plain = await run(program(language, code, true));
-  if (plain.exitCode === 101) return fail(describe(language, plain));
-  const result = parseRun(plain, [], lines, () => describe(language, plain));
+  if (plain.exitCode === 101) return fail(describe(language, plain, code));
+  const result = parseRun(plain, [], lines, () => describe(language, plain, code));
   return {
     ...result,
+    notice: traced.notice,
     error:
       result.error ??
       "Your code ran, but the visualizer couldn't add tracing to it, so there's no tree. Simplify the recursive function's signature (plain parameters, no templates or macros) and try again.",
