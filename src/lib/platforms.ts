@@ -62,19 +62,31 @@ export function leetcodeCompanies(slug: string): string[] {
 type LcIndexEntry = { id: string; slug: string; paidOnly: boolean };
 let lcIndex: { at: number; byId: Map<string, LcIndexEntry>; bySlug: Map<string, LcIndexEntry> } | null = null;
 
-/** Every LeetCode problem (one request), cached in memory for a day. */
+// LeetCode caps questionList at 100 per page, so each request asks for 20 aliased pages.
+const LC_PAGE = 100;
+const LC_PAGES_PER_REQUEST = 20;
+
+/**
+ * Every LeetCode problem, paged through GraphQL, cached in memory for a day.
+ * (The older /api/problems/all/ endpoint sits behind a Cloudflare challenge and 403s server requests.)
+ */
 async function loadLeetcodeIndex() {
   if (lcIndex && Date.now() - lcIndex.at < 86400000) return lcIndex;
-  type All = {
-    stat_status_pairs: { stat: { frontend_question_id: number | string; question__title_slug: string }; paid_only?: boolean }[];
-  };
-  const data = await getJson<All>("https://leetcode.com/api/problems/all/");
+  type Page = { total: number; data: { questionFrontendId: string; titleSlug: string; isPaidOnly: boolean }[] };
   const byId = new Map<string, LcIndexEntry>();
   const bySlug = new Map<string, LcIndexEntry>();
-  for (const { stat, paid_only } of data.stat_status_pairs) {
-    const entry = { id: String(stat.frontend_question_id), slug: stat.question__title_slug, paidOnly: Boolean(paid_only) };
-    byId.set(entry.id, entry);
-    bySlug.set(entry.slug, entry);
+  for (let skip = 0, total = Infinity; skip < total; skip += LC_PAGE * LC_PAGES_PER_REQUEST) {
+    const pages = Array.from({ length: LC_PAGES_PER_REQUEST }, (_, i) => skip + i * LC_PAGE);
+    const query = `query { ${pages
+      .map((s, i) => `p${i}: questionList(categorySlug: "", limit: ${LC_PAGE}, skip: ${s}, filters: {}) { total: totalNum data { questionFrontendId titleSlug isPaidOnly } }`)
+      .join(" ")} }`;
+    const data = Object.values(await leetcodeGraphql<Record<string, Page>>(query));
+    total = data[0]?.total ?? 0;
+    for (const q of data.flatMap((p) => p.data)) {
+      const entry = { id: q.questionFrontendId, slug: q.titleSlug, paidOnly: q.isPaidOnly };
+      byId.set(entry.id, entry);
+      bySlug.set(entry.slug, entry);
+    }
   }
   lcIndex = { at: Date.now(), byId, bySlug };
   return lcIndex;
